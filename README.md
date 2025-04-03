@@ -15,21 +15,21 @@ It is important to stress that the two files above are just exemplars. It is pos
 
 ## Workflow
 
-![Workflow of the project](img/workflow.png)
+![Workflow of the project](docs/project/img/workflow.png)
 
 ## Data model
 
-![Data model](img/datamodel.png)
+![Data model](docs/project/img/datamodel.png)
 
 ## UML of data model classes
 
-![Data model classes](img/datamodel-uml.png)
+![Data model classes](docs/project/img/datamodel-uml.png)
 
 All the methods of each class must return the appropriate value that have been specified in the object of that class when it has been created. It is up to the implementer to decide how to enable someone to add this information to the object of each class, e.g. by defining a specific constructor. While one can add additional methods to each class if needed, it is crucial that the *get* and *has* methods introduced in the UML diagram are all defined.
 
 ## UML of additional classes
 
-![Data model classes](img/classes-uml.png)
+![Data model classes](docs/project/img/classes-uml.png)
 
 All the attributes methods of each class are defined as follows. All the constructors of each of the class introduced in the UML diagram do not take in input any parameter. While one can add additional methods to each class if needed, it is crucial that all the methods introduced in the UML diagram are defined.
 
