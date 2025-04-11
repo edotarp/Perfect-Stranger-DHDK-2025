@@ -1,0 +1,29 @@
+class Handler(object): #this is the first class, all the others derive from this one 
+
+    #creating the class 
+    def __init__(self, dbPathOrUrl : str):
+        self.dbPathOrUrl = dbPathOrUrl
+
+    #creating the methods 
+    def getDbPathOrUrl(self): 
+        return self.dbPathOrUrl 
+
+    def setDbPathOrUrl(self, pathOrUrl : str): 
+        if self.dbPathOrUrl:
+            self.dbPathOrUrl = pathOrUrl
+            return True #in this case the boolean is useful to see if the method worked
+        else: 
+            return False 
+
+
+class UploadHandler(Handler):
+
+    def pushDataToDb(self, path: str): 
+        if ".csv" in path: 
+            handler = JournalUploadHandler(self.dbPathOrUrl)
+            return handler.journalUpload(self, path) #calling the method after I called the subclass
+        elif ".json" in path: 
+            handler = CategoryUploadHandler(self.dbPathOrUrl)
+            return handler.categoryUpload(self, path)
+        else: 
+            return False 
