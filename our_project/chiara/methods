@@ -27,3 +27,91 @@ class UploadHandler(Handler):
             return handler.categoryUpload(self, path)
         else: 
             return False 
+from pandas import read_csv
+from rdflib import Graph, URIRef, Literal, RDF 
+from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
+
+class JournalUploadHandler(UploadHandler): 
+
+    def journalUpload(self, path: str):   
+        my_graph = Graph() #creating the database
+
+        #classes
+        IdentifiableEntity = URIRef("https://schema.org/Thing") #I made this super generic because id is already an attribute
+        Journal = URIRef("https://schema.org/Periodical") 
+        Category = URIRef("https://schema.org/category")
+        Area = URIRef("https://www.wikidata.org/wiki/Q26256810") #I found the one of the topic because area has a different interpretation as more of a physical meaning 
+
+        #predicate 
+        hasCategory = URIRef("http://purl.org/dc/terms/subject")
+        hasArea = URIRef("https://schema.org/about")
+
+        #attributes related to classes 
+        id = URIRef("https://schema.org/identifier")
+        title = URIRef("https://schema.org/title")
+        languages = URIRef("https://schema.org/inLanguage") 
+        publisher = URIRef("https://schema.org/publisher")
+        doajSeal = URIRef("https://schema.org/Certification") 
+        licence = URIRef("https://schema.org/license")
+        apc = URIRef("https://schema.org/isAccessibleForFree")
+        quartile = URIRef("https://schema.org/ratingValue") 
+        #the impact of the journal in the respecitive field so i use the ranking attribute
+
+
+        #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
+        journals = read_csv(path, 
+                            keep_default_na=False, 
+                            dtype={
+                                "Journal title": "string",
+                                "Journal ISSN": "string",
+                                "Journal EISSN": "string",
+                                "Languages in which the journal accepts manuscripts": "string",
+                                "Publisher": "string",
+                                "DOAJ seal": "string",
+                                "Journal licence" : "string",
+                                "APC": "boolean"
+                            })
+
+        #giving unique identifiers 
+        base_url = "https://comp-data.github.io/res"
+        
+        journals_internal_id = []
+        for idx, row in journals.iterrows(): 
+            local_id = "journal-" + str(idx)
+            subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
+
+            my_graph.add((subj, RDF.type, Journal)) #the subject of the row is a journal 
+            #checking every category in the row (which is none other than a panda Series, so a list of vocabularies)
+            if row["Journal title"]: 
+                my_graph.add(subj, title, Literal(row["Journal title"]))
+            if row["Journal ISSN"]: 
+                my_graph.add(subj, id, Literal(row["Journal ISSN"])) 
+                #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
+            if row["Journal EISSN"]: 
+                my_graph.add(subj, id, Literal(row["Journal EISSN"])) 
+            if row["Languages in which the journal accepts manuscripts"]: 
+                my_graph.add(subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])) 
+            if row["Publisher"]: 
+                my_graph.add(subj, publisher, Literal(row["Publisher"])) 
+            if row["DOAJ seal"]: 
+                my_graph.add(subj, doajSeal, Literal(row["DOAJ seal"])) 
+            if row["Journal licence"]: 
+                my_graph.add(subj, licence, Literal(row["Journal licence"])) 
+            if row["APC"]: 
+                my_graph.add(subj, apc, Literal(row["APC"])) 
+
+        #opening the connection to upload the graph 
+        store = SPARQLUpdateStore() #initializing it as an object 
+        endpoint =  "http://192.168.1.14:9999/blazegraph/"
+
+        store.open(endpoint, endpoint)
+
+        for triple in my_graph.triples(None, None, None): 
+            store.add(triple)
+
+        #closing the connection when we finish 
+        store.close()
+
+        #SHOULD WE WRITE SOMETHING IF IT DOESN'T WORK? 
+        
+
