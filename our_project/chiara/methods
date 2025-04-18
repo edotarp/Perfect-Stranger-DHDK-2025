@@ -27,6 +27,77 @@ class UploadHandler(Handler):
             return handler.categoryUpload(self, path)
         else: 
             return False 
+
+
+#first case: the path is of the relational database the json file
+from json import load 
+from sqlite3 import connect
+import pandas as pd
+from pandas import Series, DataFrame
+class CategoryUploadHandler(UploadHandler): 
+    
+    def categoryUpload(self, path: str): 
+
+        #creating the database 
+        with connect("category.db") as con: 
+            con.commit() #commit the current transactions to the database  
+
+        with open(path, "r", encoding="utf-8") as c: 
+            json = load(c) #reading the file 
+
+            #internal identifier of all the items 
+            for idx, item in enumerate(json): 
+                item_internal_id = ("item-" + str(idx))
+            
+            #1. creating internal ids for each element: identifiers 
+            identifiers = json["identifiers"] #selecting the identifiers 
+            identifiers_df = DataFrame(identifiers) #creating a dataframe 
+
+            identifiers_internal_ids = []
+            for idx, row in identifiers_df.iterrows(): 
+                identifiers_internal_ids.append(("internal_id-") +  str(idx)) #questa è una lista perchè sono tutti diversi non mi serve accedere al valore 
+
+            identifiers_df.insert(0, "identifiers_id-", Series(identifiers_internal_ids, dtype="string"))
+            #new column with the internal id 
+
+            #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
+            #i have to iterate thourg everuything but check if the "id" is the same, so it's useful to use a dictionary 
+            categories = json["categories"] 
+            categories_df = DataFrame(categories)
+            
+            dict_categories_internal_id = {} #using it to keep track of what we have
+            categories_internal_id = [] #but it's more useful to still append it to the list, or i could have appended just the keys (so the new internal ids)
+            #iterating like the other one 
+            for idx, row in categories.iterrows(): 
+                if row["id"] not in  dict_categories_internal_id: 
+                     dict_categories_internal_id[row["id"]] = (("category-") + str(idx))
+                categories_internal_id.append(dict_categories_internal_id[row["id"]])
+
+            categories_df.insert(0, "categories_id-", Series(categories_internal_id, dtype="string"))
+            
+            #3. creating internal ids for areas, this is the same but without any more value 
+            areas = json["areas"]
+            areas_df = DataFrame(areas)
+
+            dict_areas_internal_id = {}
+            areas_internal_id = []
+            for idx, row in areas.iterrows(): 
+                area_section = row.iloc[0]
+                if area_section not in dict_areas_internal_id: 
+                    dict_areas_internal_id[area_section] = (("areas-") + str(idx))
+                areas_internal_id.append(dict_areas_internal_id[area_section])
+
+            areas_df.insert(0, "areas_id-", Series(areas_internal_id, dtype="string"))
+
+        #adding them to the database 
+        with connect("category.db") as con:
+            identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
+            categories_df.to_sql("categories", con, if_exists="replace", index=False)
+            areas_df.to_sql("areas", con, if_exists="replace", index=False)
+
+
+            
+#second case: the path is the one of a graph database, the csv file
 from pandas import read_csv
 from rdflib import Graph, URIRef, Literal, RDF 
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
@@ -111,7 +182,5 @@ class JournalUploadHandler(UploadHandler):
 
         #closing the connection when we finish 
         store.close()
-
-        #SHOULD WE WRITE SOMETHING IF IT DOESN'T WORK? 
+        #SHOULD WE WRITE SOMETHING IF IT DOESN'T WORK? print("something went wrong")
         
-
