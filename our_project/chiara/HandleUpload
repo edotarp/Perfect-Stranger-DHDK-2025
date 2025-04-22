@@ -8,23 +8,20 @@ class Handler(object): #this is the first class, all the others derive from this
     def getDbPathOrUrl(self): 
         return self.dbPathOrUrl 
 
-    def setDbPathOrUrl(self, pathOrUrl : str): 
-        if self.dbPathOrUrl:
-            self.dbPathOrUrl = pathOrUrl
-            return True #in this case the boolean is useful to see if the method worked
-        else: 
-            return False 
+    def setDbPathOrUrl(self, pathOrUrl : str): #: boolean 
+        self.dbPathOrUrl = pathOrUrl
+        return True
 
 
 class UploadHandler(Handler):
 
-    def pushDataToDb(self, path: str): 
-        if ".csv" in path: 
+    def pushDataToDb(self, path: str):  #self implied 
+        if path.lower().endswith(".csv"): 
             handler = JournalUploadHandler(self.dbPathOrUrl)
-            return handler.journalUpload(self, path) #calling the method after I called the subclass
-        elif ".json" in path: 
+            return handler.journalUpload(path) #calling the method after I called the subclass
+        elif path.lower().endswith(".json"): 
             handler = CategoryUploadHandler(self.dbPathOrUrl)
-            return handler.categoryUpload(self, path)
+            return handler.categoryUpload(path)
         else: 
             return False 
 
@@ -32,69 +29,89 @@ class UploadHandler(Handler):
 #first case: the path is of the relational database the json file
 from json import load 
 from sqlite3 import connect
-import pandas as pd
 from pandas import Series, DataFrame
 class CategoryUploadHandler(UploadHandler): 
     
     def categoryUpload(self, path: str): 
 
         #creating the database 
-        with connect("category.db") as con: 
+        with connect(self.dbPathOrUrl) as con: 
             con.commit() #commit the current transactions to the database  
 
         with open(path, "r", encoding="utf-8") as c: 
-            json = load(c) #reading the file 
+            json_data = load(c) #reading the file 
+
+            identifier_list = []
+
+            category_mapping_dict = {} #using it to keep track of what we have
+            categories_list = []
+
+            area_mapping_dict = {}
+            area_list = []
 
             #internal identifier of all the items 
-            for idx, item in enumerate(json): 
+            for idx, item in enumerate(json_data): 
                 item_internal_id = ("item-" + str(idx))
             
             #1. creating internal ids for each element: identifiers 
-            identifiers = json["identifiers"] #selecting the identifiers 
-            identifiers_df = DataFrame(identifiers) #creating a dataframe 
+                identifiers = item["identifiers"] #selecting the identifiers  
 
-            identifiers_internal_ids = []
-            for idx, row in identifiers_df.iterrows(): 
-                identifiers_internal_ids.append(("internal_id-") +  str(idx)) #questa è una lista perchè sono tutti diversi non mi serve accedere al valore 
+                #iterating through the identifiers indise the bigger loop of items
+                for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
+                    identifiers_internal_id = ("internal_id-") +  str(idx)
+                    identifier_list.append({
+                            "item_internal_id": item_internal_id,
+                            "identifier": identifiers_internal_id,
+                            "identifiers": identifiers
+                            })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
 
-            identifiers_df.insert(0, "identifiers_id-", Series(identifiers_internal_ids, dtype="string"))
-            #new column with the internal id 
+                #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
+                #i have to iterate thourg everything but check if the "id" is the same, so it's useful to use a dictionary 
+                categories = item["categories"]
 
-            #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
-            #i have to iterate thourg everuything but check if the "id" is the same, so it's useful to use a dictionary 
-            categories = json["categories"] 
-            categories_df = DataFrame(categories)
+                for idx, row in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
+                    cat_id = row["id"]
+
+                    if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
+                        category_id_internal_id = ("category_id-") + str(idx)
+                        category_mapping_dict[cat_id] = (category_id_internal_id)
+                    else: 
+                        category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
+
+                    categories_list.append({
+                        "item_internal_id": item_internal_id,
+                        "category_internal_id" : category_id_internal_id,
+                        "id": cat_id,
+                        "quartile": row["quartile"]
+                    })
             
-            dict_categories_internal_id = {} #using it to keep track of what we have
-            categories_internal_id = [] #but it's more useful to still append it to the list, or i could have appended just the keys (so the new internal ids)
-            #iterating like the other one 
-            for idx, row in categories.iterrows(): 
-                if row["id"] not in  dict_categories_internal_id: 
-                     dict_categories_internal_id[row["id"]] = (("category-") + str(idx))
-                categories_internal_id.append(dict_categories_internal_id[row["id"]])
+                #3. creating internal ids for areas, this is the same but without any more value 
+                areas = item["areas"]
 
-            categories_df.insert(0, "categories_id-", Series(categories_internal_id, dtype="string"))
-            
-            #3. creating internal ids for areas, this is the same but without any more value 
-            areas = json["areas"]
-            areas_df = DataFrame(areas)
+                for idx, row in enumerate(areas): 
+                    area_section = areas[0]
+                    if area_section not in area_mapping_dict: 
+                       area_id = (("areas-") + str(idx))
+                       area_mapping_dict[area_section] = area_id
+                    else: 
+                        area_id = area_mapping_dict[area_section]
+                
+                    area_list.append({
+                        "item_internal_id": item_internal_id, 
+                        "area_internal_id": area_id,
+                        "area": area_section
+                    })
 
-            dict_areas_internal_id = {}
-            areas_internal_id = []
-            for idx, row in areas.iterrows(): 
-                area_section = row.iloc[0]
-                if area_section not in dict_areas_internal_id: 
-                    dict_areas_internal_id[area_section] = (("areas-") + str(idx))
-                areas_internal_id.append(dict_areas_internal_id[area_section])
-
-            areas_df.insert(0, "areas_id-", Series(areas_internal_id, dtype="string"))
+            #converting the data in dataframes 
+            identifiers_df = DataFrame(identifier_list)
+            categories_df = DataFrame(categories_list)
+            areas_df = DataFrame(area_list)
 
         #adding them to the database 
-        with connect("category.db") as con:
+        with connect(self.dbPathOrUrl) as con:
             identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
             categories_df.to_sql("categories", con, if_exists="replace", index=False)
             areas_df.to_sql("areas", con, if_exists="replace", index=False)
-
 
             
 #second case: the path is the one of a graph database, the csv file
@@ -104,7 +121,7 @@ from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 
 class JournalUploadHandler(UploadHandler): 
 
-    def journalUpload(self, path: str):   
+    def journalUpload(self, path: str):  
         my_graph = Graph() #creating the database
 
         #classes
@@ -173,8 +190,7 @@ class JournalUploadHandler(UploadHandler):
 
         #opening the connection to upload the graph 
         store = SPARQLUpdateStore() #initializing it as an object 
-        endpoint =  "http://192.168.1.14:9999/blazegraph/"
-
+        endpoint =  self.dbPathOrUrl
         store.open(endpoint, endpoint)
 
         for triple in my_graph.triples(None, None, None): 
