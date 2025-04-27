@@ -163,7 +163,6 @@ class JournalUploadHandler(UploadHandler):
         #giving unique identifiers 
         base_url = "https://comp-data.github.io/res"
         
-        journals_internal_id = []
         for idx, row in journals.iterrows(): 
             local_id = "journal-" + str(idx)
             subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
@@ -172,16 +171,16 @@ class JournalUploadHandler(UploadHandler):
             #checking every category in the row (which is none other than a panda Series, so a list of vocabularies)
             if row["Journal title"]: 
                 my_graph.add((subj, title, Literal(row["Journal title"])))
-            if row["Journal ISSN"]: 
+            if row["Journal ISSN (print version)"]: 
                 my_graph.add((subj, id, Literal(row["Journal ISSN"])))
                 #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
-            if row["Journal EISSN"]: 
+            if row["Journal EISSN (online version)"]: 
                 my_graph.add((subj, id, Literal(row["Journal EISSN"])))
             if row["Languages in which the journal accepts manuscripts"]: 
                 my_graph.add((subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])))
             if row["Publisher"]: 
                 my_graph.add((subj, publisher, Literal(row["Publisher"])))
-            if row["DOAJ seal"]: 
+            if row["DOAJ Seal"]: 
                 my_graph.add((subj, doajSeal, Literal(row["DOAJ seal"])))
             if row["Journal licence"]: 
                 my_graph.add((subj, licence, Literal(row["Journal licence"])))
