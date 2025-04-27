@@ -29,7 +29,7 @@ class UploadHandler(Handler):
 #first case: the path is of the relational database the json file
 from json import load 
 from sqlite3 import connect
-from pandas import Series, DataFrame
+from pandas import DataFrame
 class CategoryUploadHandler(UploadHandler): 
     
     def categoryUpload(self, path: str): 
@@ -142,7 +142,7 @@ class JournalUploadHandler(UploadHandler):
         doajSeal = URIRef("https://schema.org/Certification") 
         licence = URIRef("https://schema.org/license")
         apc = URIRef("https://schema.org/isAccessibleForFree")
-        quartile = URIRef("https://schema.org/ratingValue") 
+        quartile = URIRef("https://schema.org/ratingValue") #to revise is it useful? 
         #the impact of the journal in the respecitive field so i use the ranking attribute
 
 
@@ -151,13 +151,13 @@ class JournalUploadHandler(UploadHandler):
                             keep_default_na=False, 
                             dtype={
                                 "Journal title": "string",
-                                "Journal ISSN": "string",
-                                "Journal EISSN": "string",
+                                "Journal ISSN (print version)": "string",
+                                "Journal EISSN (online version)": "string",
                                 "Languages in which the journal accepts manuscripts": "string",
                                 "Publisher": "string",
-                                "DOAJ seal": "string",
-                                "Journal licence" : "string",
-                                "APC": "boolean"
+                                "DOAJ Seal": "string",
+                                "Journal license" : "string",
+                                "APC": "string"
                             })
 
         #giving unique identifiers 
@@ -168,30 +168,30 @@ class JournalUploadHandler(UploadHandler):
             local_id = "journal-" + str(idx)
             subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
 
-            my_graph.add((subj, RDF.type, Journal)) #the subject of the row is a journal 
+            my_graph.add(((subj, RDF.type, Journal))) #the subject of the row is a journal 
             #checking every category in the row (which is none other than a panda Series, so a list of vocabularies)
             if row["Journal title"]: 
-                my_graph.add(subj, title, Literal(row["Journal title"]))
+                my_graph.add((subj, title, Literal(row["Journal title"])))
             if row["Journal ISSN"]: 
-                my_graph.add(subj, id, Literal(row["Journal ISSN"])) 
+                my_graph.add((subj, id, Literal(row["Journal ISSN"])))
                 #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
             if row["Journal EISSN"]: 
-                my_graph.add(subj, id, Literal(row["Journal EISSN"])) 
+                my_graph.add((subj, id, Literal(row["Journal EISSN"])))
             if row["Languages in which the journal accepts manuscripts"]: 
-                my_graph.add(subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])) 
+                my_graph.add((subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])))
             if row["Publisher"]: 
-                my_graph.add(subj, publisher, Literal(row["Publisher"])) 
+                my_graph.add((subj, publisher, Literal(row["Publisher"])))
             if row["DOAJ seal"]: 
-                my_graph.add(subj, doajSeal, Literal(row["DOAJ seal"])) 
+                my_graph.add((subj, doajSeal, Literal(row["DOAJ seal"])))
             if row["Journal licence"]: 
-                my_graph.add(subj, licence, Literal(row["Journal licence"])) 
+                my_graph.add((subj, licence, Literal(row["Journal licence"])))
             if row["APC"]: 
-                my_graph.add(subj, apc, Literal(row["APC"])) 
+                my_graph.add((subj, apc, Literal(row["APC"])))
 
         #opening the connection to upload the graph 
         store = SPARQLUpdateStore() #initializing it as an object 
-        endpoint =  self.dbPathOrUrl
-        store.open(endpoint, endpoint)
+        #endpoint =  self.dbPathOrUrl the endopoint is he url or path of the database 
+        store.open(self.dbPathOrUrl, self.dbPathOrUrl)
 
         for triple in my_graph.triples(None, None, None): 
             store.add(triple)
@@ -199,4 +199,4 @@ class JournalUploadHandler(UploadHandler):
         #closing the connection when we finish 
         store.close()
         #SHOULD WE WRITE SOMETHING IF IT DOESN'T WORK? print("something went wrong")
-        
+    
