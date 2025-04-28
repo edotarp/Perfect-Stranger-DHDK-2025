@@ -237,18 +237,18 @@ class JournalUploadHandler(UploadHandler):
             if row["Journal title"]: 
                 my_graph.add((subj, title, Literal(row["Journal title"])))
             if row["Journal ISSN (print version)"]: 
-                my_graph.add((subj, id, Literal(row["Journal ISSN"])))
+                my_graph.add((subj, id, Literal(row["Journal ISSN (print version)"])))
                 #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
             if row["Journal EISSN (online version)"]: 
-                my_graph.add((subj, id, Literal(row["Journal EISSN"])))
+                my_graph.add((subj, id, Literal(row["Journal EISSN (online version)"])))
             if row["Languages in which the journal accepts manuscripts"]: 
                 my_graph.add((subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])))
             if row["Publisher"]: 
                 my_graph.add((subj, publisher, Literal(row["Publisher"])))
             if row["DOAJ Seal"]: 
-                my_graph.add((subj, doajSeal, Literal(row["DOAJ seal"])))
-            if row["Journal licence"]: 
-                my_graph.add((subj, licence, Literal(row["Journal licence"])))
+                my_graph.add((subj, doajSeal, Literal(row["DOAJ Seal"])))
+            if row["Journal license"]: 
+                my_graph.add((subj, licence, Literal(row["Journal license"])))
             if row["APC"]: 
                 my_graph.add((subj, apc, Literal(row["APC"])))
 
