@@ -105,12 +105,12 @@ class CategoryUploadHandler(UploadHandler):
     
     def categoryUpload(self, path: str): 
 
-        #creating the database 
+       #creating the database 
         with connect(self.dbPathOrUrl) as con: 
             con.commit() #commit the current transactions to the database  
 
         with open(path, "r", encoding="utf-8") as c: 
-            json_data = load(c) #reading the file 
+            json_data = json.load(c) #reading the file 
 
             identifier_list = []
 
@@ -124,7 +124,7 @@ class CategoryUploadHandler(UploadHandler):
             for idx, item in enumerate(json_data): 
                 item_internal_id = ("item-" + str(idx))
             
-            #1. creating internal ids for each element: identifiers 
+                #1. creating internal ids for each element: identifiers 
                 identifiers = item["identifiers"] #selecting the identifiers  
 
                 #iterating through the identifiers indise the bigger loop of items
@@ -174,9 +174,9 @@ class CategoryUploadHandler(UploadHandler):
                     })
 
             #converting the data in dataframes 
-            identifiers_df = DataFrame(identifier_list)
-            categories_df = DataFrame(categories_list)
-            areas_df = DataFrame(area_list)
+            identifiers_df = pd.DataFrame(identifier_list)
+            categories_df = pd.DataFrame(categories_list)
+            areas_df = pd.DataFrame(area_list)
 
         #adding them to the database 
         with connect(self.dbPathOrUrl) as con:
@@ -212,7 +212,7 @@ class JournalUploadHandler(UploadHandler):
 
 
         #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
-        journals = read_csv(path, 
+        journals = pd.read_csv(path, 
                             keep_default_na=False, 
                             dtype={
                                 "Journal title": "string",
@@ -228,7 +228,6 @@ class JournalUploadHandler(UploadHandler):
         #giving unique identifiers 
         base_url = "https://comp-data.github.io/res"
         
-        journals_internal_id = []
         for idx, row in journals.iterrows(): 
             local_id = "journal-" + str(idx)
             subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
@@ -237,16 +236,16 @@ class JournalUploadHandler(UploadHandler):
             #checking every category in the row (which is none other than a panda Series, so a list of vocabularies)
             if row["Journal title"]: 
                 my_graph.add((subj, title, Literal(row["Journal title"])))
-            if row["Journal ISSN"]: 
+            if row["Journal ISSN (print version)"]: 
                 my_graph.add((subj, id, Literal(row["Journal ISSN"])))
                 #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
-            if row["Journal EISSN"]: 
+            if row["Journal EISSN (online version)"]: 
                 my_graph.add((subj, id, Literal(row["Journal EISSN"])))
             if row["Languages in which the journal accepts manuscripts"]: 
                 my_graph.add((subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])))
             if row["Publisher"]: 
                 my_graph.add((subj, publisher, Literal(row["Publisher"])))
-            if row["DOAJ seal"]: 
+            if row["DOAJ Seal"]: 
                 my_graph.add((subj, doajSeal, Literal(row["DOAJ seal"])))
             if row["Journal licence"]: 
                 my_graph.add((subj, licence, Literal(row["Journal licence"])))
