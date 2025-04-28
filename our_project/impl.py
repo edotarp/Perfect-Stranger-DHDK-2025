@@ -313,31 +313,31 @@ class JournalQueryHandler:
         query = """
         SELECT DISTINCT ?journal ?title ?issn ?eissn ?languages ?publisher ?license ?apc ?seal
         WHERE {
-          ?journal a <https://example.org/Journal> ;
-                   <https://schema.org/name> ?title ;
-                   <https://schema.org/issn> ?issn ;
-                   <https://example.org/eissn> ?eissn ;
-                   <https://schema.org/inLanguage> ?languages .
-          OPTIONAL { ?journal <https://schema.org/publisher> ?publisher }
-          OPTIONAL { ?journal <https://schema.org/license> ?license }
-          OPTIONAL { ?journal <https://example.org/apc> ?apc }
-          OPTIONAL { ?journal <https://example.org/doajSeal> ?seal }
+          ?journal a <https://schema.org/Periodical> ;
+                   <https://schema.org/title> ?title ;
+                   <https://schema.org/identifier> ?issn ;
+                   <https://schema.org/identifier> ?eissn ;
+                   <https://schema.org/inLanguage> ?languages ;
+                   <https://schema.org/license> ?license .
+          OPTIONAL { ?journal schema:publisher ?publisher }
+          OPTIONAL { ?journal schema:isAccessibleForFree ?apc }
+          OPTIONAL { ?journal schema:Certification ?seal }
         }
         """
-        return self.execute_sparql_query(query)
-
-    def getJournalsWithTitle(self, title):
+        return self.execute_sparql_query(query)   #if there was an error the issn schema can be altered
+                                                  
+    def getJournalsWithTitle(self, title: str):
         title = title.replace('"', '\\"')
         query = f"""
         SELECT DISTINCT ?journal ?title
         WHERE {{
-          ?journal <https://schema.org/name> ?title .
+          ?journal <https://schema.org/title> ?title .
           FILTER(CONTAINS(LCASE(?title), "{title.lower()}"))
         }}
         """
         return self.execute_sparql_query(query)
 
-    def getJournalsPublishedBy(self, publisher):
+    def getJournalsPublishedBy(self, publisher: str):
         publisher = publisher.replace('"', '\\"')
         query = f"""
         SELECT DISTINCT ?journal ?publisher
@@ -348,7 +348,7 @@ class JournalQueryHandler:
         """
         return self.execute_sparql_query(query)
 
-    def getJournalsWithLicense(self, license_str):
+    def getJournalsWithLicense(self, license_str: str):
         license_str = license_str.replace('"', '\\"')
         query = f"""
         SELECT DISTINCT ?journal ?license
@@ -363,7 +363,7 @@ class JournalQueryHandler:
         query = """
         SELECT DISTINCT ?journal ?apc
         WHERE {
-          ?journal <https://example.org/apc> ?apc .
+          ?journal <https://schema.org/isAccessibleForFree> ?apc .
           FILTER(LCASE(?apc) = "yes")
         }
         """
@@ -373,7 +373,7 @@ class JournalQueryHandler:
         query = """
         SELECT DISTINCT ?journal ?seal
         WHERE {
-          ?journal <https://example.org/doajSeal> ?seal .
+          ?journal <https://schema.org/Certification> ?seal .
           FILTER(LCASE(?seal) = "yes")
         }
         """
@@ -384,7 +384,7 @@ class JournalQueryHandler:
         query = f"""
         SELECT DISTINCT ?category
         WHERE {{
-          <{journal_uri}> <https://example.org/hasCategory> ?category .
+          <{journal_uri}> <https://schema.org/category> ?category .
         }}
         """
         return self.execute_sparql_query(query)
@@ -394,7 +394,7 @@ class JournalQueryHandler:
         query = f"""
         SELECT DISTINCT ?area
         WHERE {{
-          <{journal_uri}> <https://example.org/hasArea> ?area .
+          <{journal_uri}> <https://schema.org/about> ?area .
         }}
         """
         return self.execute_sparql_query(query)
