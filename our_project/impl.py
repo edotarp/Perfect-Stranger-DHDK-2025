@@ -126,57 +126,65 @@ class CategoryUploadHandler(UploadHandler):
                 area_list = []
 
                 #internal identifier of all the items 
-                for idx, item in enumerate(json_data): 
-                    item_internal_id = ("item-" + str(idx))
+                for item_idx, item in enumerate(json_data): 
+                    item_internal_id = ("item-" + str(item_idx))
                 
                     #1. creating internal ids for each element: identifiers 
-                    identifiers = item["identifiers"] #selecting the identifiers  
+                    identifiers = item.get("identifiers", []) #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id 
 
                     #iterating through the identifiers indise the bigger loop of items
-                    for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                        identifiers_internal_id = ("internal_id-") +  str(idx)
-                        identifier_list.append({
-                                "item_internal_id": item_internal_id,
-                                "identifier": identifiers_internal_id,
-                                "identifiers": identifiers
-                                })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
+                    for id_idx, identifier in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
+                        identifiers_internal_id = ("internal_id-") + (item_internal_id) + ("-") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+
+                        if identifier: #checking if there is an identifier to avoid errors 
+                            identifier_list.append({
+                                    "item_internal_id": item_internal_id,
+                                    "identifier_internal_id": identifiers_internal_id,
+                                    "identifiers": identifier #which is the single identifier 
+                                    })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
 
                     #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
                     #i have to iterate thourg everything but check if the "id" is the same, so it's useful to use a dictionary 
-                    categories = item["categories"] 
-                    #DUBBIO!!!!! should i add some kind of handler if there are present? like item.get("identifiers", [])
+                    categories = item.get("categories", []) #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
 
-                    for idx, row in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
-                        cat_id = row["id"]
+                    for cat_idx, category in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
+                        cat_id = category.get("id")
 
-                        if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
-                            category_id_internal_id = ("category_id-") + str(idx)
-                            category_mapping_dict[cat_id] = (category_id_internal_id)
-                        else: 
-                            category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
+                        if cat_id: #checking if there is a category to avoid errors, so i don't need the [] here, it goes on only if the condition is true 
 
-                        categories_list.append({
-                            "item_internal_id": item_internal_id,
-                            "category_internal_id" : category_id_internal_id,
-                            "id": cat_id,
-                            "quartile": row["quartile"]
-                        })
+                            if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
+                                category_id_internal_id = ("category_id-") + str(cat_idx)
+                                category_mapping_dict[cat_id] = (category_id_internal_id)
+                            else: 
+                                category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
+
+                            #checking for the quartile, because it's optional in the UML
+                            quartile = category.get("quartile", "")
+
+                            categories_list.append({
+                                "item_internal_id": item_internal_id,
+                                "category_internal_id" : category_id_internal_id,
+                                "id": cat_id,
+                                "quartile": quartile
+                            })
                 
                     #3. creating internal ids for areas, this is the same but without any more value 
-                    areas = item["areas"]
+                    areas = item.get("areas", [])
 
-                    for idx, row in enumerate(areas): 
-                        if row not in area_mapping_dict: 
-                            area_id = (("areas-") + str(idx))
-                            area_mapping_dict[row] = area_id
-                        else: 
-                            area_id = area_mapping_dict[row]
-                    
-                        area_list.append({
-                            "item_internal_id": item_internal_id, 
-                            "area_internal_id": area_id,
-                            "area": row
-                        })
+                    for area_idx, area in enumerate(areas): 
+
+                        if area is not None: #checking if there is an area to avoid errors 
+                            if area not in area_mapping_dict: 
+                                area_id = (("areas-") + str(area_idx))
+                                area_mapping_dict[area] = area_id
+                            else: 
+                                area_id = area_mapping_dict[area]
+                        
+                            area_list.append({
+                                "item_internal_id": item_internal_id, 
+                                "area_internal_id": area_id,
+                                "area": area
+                            })
 
                 #converting the data in dataframes 
                 
@@ -193,6 +201,7 @@ class CategoryUploadHandler(UploadHandler):
                 identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
                 categories_df.to_sql("categories", con, if_exists="replace", index=False)
                 areas_df.to_sql("areas", con, if_exists="replace", index=False)
+        
         except Exception as e: #handling errors in the pushing data phase
             print(e)
 
@@ -252,31 +261,42 @@ class JournalUploadHandler(UploadHandler):
                 subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
 
                 my_graph.add(((subj, RDF.type, Journal))) #the subject of the row is a journal 
-                #checking every category in the row (which is none other than a panda Series, so a list of vocabularies)
+                
+                #checking every category in the row (which is none other than a list of vocabularies)
                 if row["Journal title"]: 
                     my_graph.add((subj, title, Literal(row["Journal title"])))
+                
                 if row["Journal ISSN (print version)"]: 
                     my_graph.add((subj, id, Literal(row["Journal ISSN (print version)"])))
-                    #NEED TO DECIDE IF WE WANT TO CONSIDER BOTH AS ID, OR TO SEPATATE THEM (https://schema.org/issn) 
+                
                 if row["Journal EISSN (online version)"]: 
                     my_graph.add((subj, id, Literal(row["Journal EISSN (online version)"])))
-                if row["Languages in which the journal accepts manuscripts"]: 
-                    my_graph.add((subj, languages, Literal(row["Languages in which the journal accepts manuscripts"])))
+                
+                if row["Languages in which the journal accepts manuscripts"]: #there could be more languages so it's better to iterate through each of them 
+                    language_string = row["Languages in which the journal accepts manuscripts"] #1. taking in consideration the whole row
+                    language_list = language_string.split(",") #as indicated in the F.A.Q on the github they are separated with a comma but inside quotes of course ",", so I separate each item 
+                    for language in language_list: 
+                        language = language.strip() #to delete whitespaces and facilitate the query 
+                        my_graph.add((subj, languages, Literal(language)))
+                
                 if row["Publisher"]: 
                     my_graph.add((subj, publisher, Literal(row["Publisher"])))
+                
                 if row["DOAJ Seal"]: 
                     my_graph.add((subj, doajSeal, Literal(row["DOAJ Seal"])))
+                
                 if row["Journal license"]: 
                     my_graph.add((subj, licence, Literal(row["Journal license"])))
+                
                 if row["APC"]: 
                     my_graph.add((subj, apc, Literal(row["APC"])))
 
         except Exception as e: 
             print(e) #handling errors in the building the graph phase 
 
+        #opening the connection to upload the graph 
+        store = SPARQLUpdateStore() #initializing it as an object 
         try: 
-            #opening the connection to upload the graph 
-            store = SPARQLUpdateStore() #initializing it as an object 
             #endpoint =  self.dbPathOrUrl the endopoint is the url or path of the database 
             store.open(self.dbPathOrUrl, self.dbPathOrUrl)
 
@@ -287,7 +307,7 @@ class JournalUploadHandler(UploadHandler):
             store.close()
 
         except Exception as e: 
-            print(e) #handling errors in the upload part 
+            print ("Problems with the Blazegraph connection: ", e) #handling errors in the upload part 
     
 # ------------------------------------------------------------------------------------------------------
 # CategoryQueryHandler and QueryHandler - Cecilia Vesci
