@@ -364,9 +364,9 @@ class JournalQueryHandler:
                    <https://schema.org/identifier> ?eissn ;
                    <https://schema.org/inLanguage> ?languages ;
                    <https://schema.org/license> ?license .
-          OPTIONAL { ?journal schema:publisher ?publisher }
-          OPTIONAL { ?journal schema:isAccessibleForFree ?apc }
-          OPTIONAL { ?journal schema:Certification ?seal }
+          OPTIONAL { ?journal <https://schema.org/publisher> ?publisher }
+          OPTIONAL { ?journal <https://schema.org/isAccessibleForFree> ?apc }
+          OPTIONAL { ?journal <https://schema.org/Certification> ?seal }
         }
         """
         return self.execute_sparql_query(query)   #if there was an error the issn schema can be altered
