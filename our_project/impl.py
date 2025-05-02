@@ -78,8 +78,8 @@ class Area(IdentifiableEntity):
 class Handler(object): #this is the first class, all the others derive from this one 
 
     #creating the class 
-    def __init__(self, dbPathOrUrl : str):
-        self.dbPathOrUrl = dbPathOrUrl
+    def __init__(self):
+        self.dbPathOrUrl = ""
 
     #creating the methods 
     def getDbPathOrUrl(self): 
@@ -87,29 +87,25 @@ class Handler(object): #this is the first class, all the others derive from this
 
     def setDbPathOrUrl(self, pathOrUrl : str): #: boolean 
         self.dbPathOrUrl = pathOrUrl
-        return True
+        return self.dbPathOrUrl == pathOrUrl
 
 
 class UploadHandler(Handler):
 
-    def pushDataToDb(self, path: str):  #self implied 
-        if path.lower().endswith(".csv"): 
-            handler = JournalUploadHandler(self.dbPathOrUrl)
-            return handler.journalUpload(path) #calling the method after I called the subclass
-        elif path.lower().endswith(".json"): 
-            handler = CategoryUploadHandler(self.dbPathOrUrl)
-            return handler.categoryUpload(path)
-        else: 
-            print("Unsupported file. Please try with a .csv or .json") #handling edge case: the file type is not right
-            return False 
+    def __init__(self):
+        super().__init__()
+
+    def pushDataToDb(self):
+        pass
+
 
 
 #first case: the path is of the relational database the json file
-import json 
-from sqlite3 import connect
-import pandas as pd
+
 class CategoryUploadHandler(UploadHandler): 
-    
+    def __init__(self):
+        self.dbPathOrUrl = ""
+
     def categoryUpload(self, path: str): 
         
         try: 
@@ -127,7 +123,7 @@ class CategoryUploadHandler(UploadHandler):
 
                 #internal identifier of all the items 
                 for item_idx, item in enumerate(json_data): 
-                    item_internal_id = ("item-" + str(item_idx))
+                    item_internal_id = ("item-" + str(item_idx)) # TODO: edo comment, i would use 'item_' instead of 'item-'
                 
                     #1. creating internal ids for each element: identifiers 
                     identifiers = item.get("identifiers", []) #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id 
@@ -201,22 +197,43 @@ class CategoryUploadHandler(UploadHandler):
                 identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
                 categories_df.to_sql("categories", con, if_exists="replace", index=False)
                 areas_df.to_sql("areas", con, if_exists="replace", index=False)
+
+                # TODO: why not 'con.commit()'
         
         except Exception as e: #handling errors in the pushing data phase
             print(e)
 
             
 #second case: the path is the one of a graph database, the csv file
-from rdflib import Graph, URIRef, Literal, RDF 
-from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 
 class JournalUploadHandler(UploadHandler): 
+    def __init__(self):
+        self.dbPathOrUrl = ""
 
-    def journalUpload(self, path: str):  
+    def pushDataToDb(self, path):  
 
-        try:     
+        try:  
+            #giving unique identifiers 
+            base_url = "https://comp-data.github.io/res"   
             my_graph = Graph() #creating the database
-
+            #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
+            
+            journals = pd.read_csv(path, 
+                                keep_default_na=False, 
+                                dtype={
+                                    "Journal title": "string",
+                                    "Journal ISSN (print version)": "string",
+                                    "Journal EISSN (online version)": "string",
+                                    "Languages in which the journal accepts manuscripts": "string",
+                                    "Publisher": "string",
+                                    "DOAJ Seal": "string",
+                                    "Journal license" : "string",
+                                    "APC": "string"
+                                })
+            
+            #removing duplicates based on Id column, keeping the first instance
+            # journals.drop_duplicates(subset=["Journal title"], keep="first", inplace=True, ignore_index=True)
+            
             #classes
             IdentifiableEntity = URIRef("https://schema.org/Thing") #I made this super generic because id is already an attribute
             Journal = URIRef("https://schema.org/Periodical") 
@@ -238,24 +255,6 @@ class JournalUploadHandler(UploadHandler):
             quartile = URIRef("https://schema.org/ratingValue") #to revise is it useful? 
             #the impact of the journal in the respecitive field so i use the ranking attribute
 
-
-            #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
-            journals = pd.read_csv(path, 
-                                keep_default_na=False, 
-                                dtype={
-                                    "Journal title": "string",
-                                    "Journal ISSN (print version)": "string",
-                                    "Journal EISSN (online version)": "string",
-                                    "Languages in which the journal accepts manuscripts": "string",
-                                    "Publisher": "string",
-                                    "DOAJ Seal": "string",
-                                    "Journal license" : "string",
-                                    "APC": "string"
-                                })
-
-            #giving unique identifiers 
-            base_url = "https://comp-data.github.io/res"
-            
             for idx, row in journals.iterrows(): 
                 local_id = "journal-" + str(idx)
                 subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
@@ -289,7 +288,7 @@ class JournalUploadHandler(UploadHandler):
                     my_graph.add((subj, licence, Literal(row["Journal license"])))
                 
                 if row["APC"]: 
-                    my_graph.add((subj, apc, Literal(row["APC"])))
+                    my_graph.add((subj, apc, Literal(row["APC"]))) # TODO: apc and seal have to be Boleans, not Yes/No
 
         except Exception as e: 
             print(e) #handling errors in the building the graph phase 
@@ -298,9 +297,9 @@ class JournalUploadHandler(UploadHandler):
         store = SPARQLUpdateStore() #initializing it as an object 
         try: 
             #endpoint =  self.dbPathOrUrl the endopoint is the url or path of the database 
-            store.open(self.dbPathOrUrl, self.dbPathOrUrl)
+            store.open((self.dbPathOrUrl, self.dbPathOrUrl))
 
-            for triple in my_graph.triples(None, None, None): 
+            for triple in my_graph.triples((None, None, None)): 
                 store.add(triple)
 
             #closing the connection when we finish 
@@ -312,30 +311,39 @@ class JournalUploadHandler(UploadHandler):
 # ------------------------------------------------------------------------------------------------------
 # CategoryQueryHandler and QueryHandler - Cecilia Vesci
 
-class CategoryQueryHandler(QueryHandler):
-  def __init__(self, dbPathOrUrl=""):
-        #super().__init__()
+class QueryHandler(Handler): 
+    def __init__(self, dbPathOrUrl=""):  # Provide a default value for dbPathOrUrl
+        super().__init__()
         self.dbPathOrUrl = dbPathOrUrl
-        self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), self.dbPathOrUrl))
+
+    def getById(self, id: str):
+        pass
+
+# class CategoryQueryHandler(QueryHandler):
+#   def __init__(self, dbPathOrUrl=""):
+#         #super().__init__()
+#         self.dbPathOrUrl = dbPathOrUrl
+#         self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), self.dbPathOrUrl))
   
-  def getById(self, id: str):
-      return pd.DataFrame() # return empty dataframe as no IdentifiableEntity in relational db
+#   def getById(self, id: str):
+#       return pd.DataFrame() # return empty dataframe as no IdentifiableEntity in relational db
    
-  def executeQuery(self, sql_command):
-       connection = connect(self.dbPathOrUrl)
-       cursor = connection.cursor()
-       cursor.execute(sql_command)
-       df = pd.DataFrame(cursor.fetchall(), columns = [description[0] for description in cursor.description])
-       #df.columns = [description[0] for description in cursor.description]; # setting column names with list comprehension because sqlite lacks a normal reference to column names
-       connection.close()
-       return df
+#   def executeQuery(self, sql_command):
+#        connection = connect(self.dbPathOrUrl)
+#        cursor = connection.cursor()
+#        cursor.execute(sql_command)
+#        df = pd.DataFrame(cursor.fetchall(), columns = [description[0] for description in cursor.description])
+#        #df.columns = [description[0] for description in cursor.description]; # setting column names with list comprehension because sqlite lacks a normal reference to column names
+#        connection.close()
+#        return df
         
 # ------------------------------------------------------------------------------------------------------
 # JournalQueryHandler - Faride
 
-class JournalQueryHandler:
-    def __init__(self, db_url):
-        self.dbPathOrUrl = db_url
+class JournalQueryHandler(QueryHandler):
+    # TODO: we have to deal with repetition in all the methods
+    def __init__(self):
+        self.dbPathOrUrl = ""
 
     def execute_sparql_query(self, query):
         sparql = SPARQLWrapper.SPARQLWrapper(self.dbPathOrUrl)
@@ -354,8 +362,12 @@ class JournalQueryHandler:
             df.loc[len(df)] = row_data
         return df.replace(np.nan, "")
 
+    def getById(self, id):
+        # TODO: it is missing getById for Journals 
+        pass
+
     def getAllJournals(self):
-        query = """
+        query =         """
         SELECT DISTINCT ?journal ?title ?issn ?eissn ?languages ?publisher ?license ?apc ?seal
         WHERE {
           ?journal a <https://schema.org/Periodical> ;
@@ -364,9 +376,9 @@ class JournalQueryHandler:
                    <https://schema.org/identifier> ?eissn ;
                    <https://schema.org/inLanguage> ?languages ;
                    <https://schema.org/license> ?license .
-          OPTIONAL { ?journal schema:publisher ?publisher }
-          OPTIONAL { ?journal schema:isAccessibleForFree ?apc }
-          OPTIONAL { ?journal schema:Certification ?seal }
+          OPTIONAL { ?journal <https://schema.org/publisher> ?publisher }
+          OPTIONAL { ?journal <https://schema.org/isAccessibleForFree> ?apc }
+          OPTIONAL { ?journal <https://schema.org/Certification> ?seal }
         }
         """
         return self.execute_sparql_query(query)   #if there was an error the issn schema can be altered
@@ -487,168 +499,228 @@ class BasicQueryEngine(object):
     #         return Journal(df.iloc[0]["id"], df.iloc[0]["name"])
         
         return None
-
     
+    def dataframeBuilder(self):
+        if len(self.journalQuery) > 0:
+            all_journal_dfs = []
+            for handler in self.journalQuery:
+                new_journal_df = handler.getAllJournals()
+                all_journal_dfs.append(new_journal_df)
+
+            if all_journal_dfs:
+                # concatenate all journal df in the list
+                journal_df = pd.concat(all_journal_dfs, ignore_index=True)
+                # remove duplicates based on 'journal' name
+                journal_df.drop_duplicates(subset=['journal'], keep='first', inplace=True, ignore_index=True)
+                
+            else:
+                # if all_journal_dfs == False: return empty df
+                journal_df = pd.DataFrame() 
+            
+            return journal_df
+
+
     def getAllJournals(self) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() # df dove verranno aggregati i dati di tutti i giornali
-            new_journal_df_list = list() # conterrè i df restituiti dai vari handler
-            for handler in self.journalQuery:
-                new_journal_df = handler.getAllJournals() # .getAllJournals() metodo di JournalQueryHandler - restituisce un df contenente tutti i journals presenti nel df
-                new_journal_df_list.append(new_journal_df); 
-                # alla fine si raccolgono i df in tutti gli handler    
-                #   
-            journal_df = new_journal_df_list[0] # prendo il df in posizione[0] nella lista new_journal_df_list al quale aggiungerò tutti i journals negli altri df
-            for item in new_journal_df_list[1:]:
-                journal_df = journal_df.merge(item, on=['journal_id'], how='inner').drop_duplicates(subset=['journal_id'], keep='first', inplace=True, ignore_index=True) 
-            for idx, row in journal_df.iterrows():
-                if row['journal_id'] != " " and row['journal_title'] != " ": # ISSN e EISSN --- guardare altre rows??
-                    person = Journal(row['journal_id'], row['journal_title'])
-                    journal_list.append(person)
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            journal = Journal(
+                id=[row['journal']],  
+                title=row['title'],
+                languages=[row['languages']] if pd.notna(row['languages']) else [],
+                publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                license=row['license'] if pd.notna(row['license']) else None,
+                apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+            )
+            journal_list.append(journal)
+
+        return journal_list, len(journal_list)
     
     def getJournalsWithTitle(self, partialTitle: str) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() 
-            new_journal_df_list = list() 
-            for handler in self.journalQuery:
-                new_journal_df = handler.getJournalsWithTitle(partialTitle)
-                new_journal_df_list.append(new_journal_df); 
-                 
-            journal_df = new_journal_df_list[0]
-            for item in new_journal_df_list[1:]:
-                #
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            if row['title'] == partialTitle:
+                journal = Journal(
+                    id=[row['journal']],  
+                    title=row['title'],
+                    languages=[row['languages']] if pd.notna(row['languages']) else [],
+                    publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                    seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                    license=row['license'] if pd.notna(row['license']) else None,
+                    apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                    hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                    hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+                )
+                journal_list.append(journal)
+
+        return journal_list, len(journal_list)
 
     def getJournalsPublishedBy(self, partialName: str) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() 
-            new_journal_df_list = list() 
-            for handler in self.journalQuery:
-                new_journal_df = handler.getJournalsPublishedBy(partialName)
-                new_journal_df_list.append(new_journal_df); 
-                 
-            journal_df = new_journal_df_list[0]
-            for item in new_journal_df_list[1:]:
-                #
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            if row['publisher'] == partialName:
+                journal = Journal(
+                    id=[row['journal']],  
+                    title=row['title'],
+                    languages=[row['languages']] if pd.notna(row['languages']) else [],
+                    publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                    seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                    license=row['license'] if pd.notna(row['license']) else None,
+                    apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                    hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                    hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+                )
+                journal_list.append(journal)
+
+        return journal_list, len(journal_list)
 
     def getJournalsWithLicense(self, licenses: set[str]) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() 
-            new_journal_df_list = list() 
-            for handler in self.journalQuery:
-                new_journal_df = handler.getJournalsWithLicense(licenses)
-                new_journal_df_list.append(new_journal_df); 
-                 
-            journal_df = new_journal_df_list[0]
-            for item in new_journal_df_list[1:]:
-                #
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            if row['license'] == licenses:
+                journal = Journal(
+                    id=[row['journal']],  
+                    title=row['title'],
+                    languages=[row['languages']] if pd.notna(row['languages']) else [],
+                    publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                    seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                    license=row['license'] if pd.notna(row['license']) else None,
+                    apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                    hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                    hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+                )
+                journal_list.append(journal)
+
+        return journal_list, len(journal_list)
 
     def getJournalsWithAPC(self) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() 
-            new_journal_df_list = list() 
-            for handler in self.journalQuery:
-                new_journal_df = handler.getJournalsWithAPC()
-                new_journal_df_list.append(new_journal_df); 
-                 
-            journal_df = new_journal_df_list[0]
-            for item in new_journal_df_list[1:]:
-                #
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            if row['apc'] == 'Yes':
+                journal = Journal(
+                    id=[row['journal']],  
+                    title=row['title'],
+                    languages=[row['languages']] if pd.notna(row['languages']) else [],
+                    publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                    seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                    license=row['license'] if pd.notna(row['license']) else None,
+                    apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                    hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                    hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+                )
+                journal_list.append(journal)
+
+        return journal_list, len(journal_list)
 
     def getJournalsWithDOAJSeal(self) -> list[Journal]:
         journal_list = list()
-        if len(self.journalQuery) > 0:
-            journal_df = pd.DataFrame() 
-            new_journal_df_list = list() 
-            for handler in self.journalQuery:
-                new_journal_df = handler.getJournalsWithDOAJSeal()
-                new_journal_df_list.append(new_journal_df); 
-                 
-            journal_df = new_journal_df_list[0]
-            for item in new_journal_df_list[1:]:
-                # 
-        return journal_list
+        journal_df = self.dataframeBuilder()
+        # convert df into list of Python Objects
+        for index, row in journal_df.iterrows():
+            if row['seal'] == 'Yes':
+                journal = Journal(
+                    id=[row['journal']],  
+                    title=row['title'],
+                    languages=[row['languages']] if pd.notna(row['languages']) else [],
+                    publisher=row['publisher'] if pd.notna(row['publisher']) else None,
+                    seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
+                    license=row['license'] if pd.notna(row['license']) else None,
+                    apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
+                    hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
+                    hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
+                )
+                journal_list.append(journal)
+
+        return journal_list, len(journal_list)
     
-    def getAllCategories(self) -> list[Category]:
-        category_list = list()
-        if len(self.categoryQuery) > 0:
-            category_df = pd.DataFrame()
-            new_category_df_list = list()
-            for handler in self.categoryQuery:
-                new_category_df = handler.getAllCategories()
-                new_category_df_list.append(new_category_df)
+    # def getAllCategories(self) -> list[Category]:
+    #     category_list = list()
+    #     if len(self.categoryQuery) > 0:
+    #         category_df = pd.DataFrame()
+    #         new_category_df_list = list()
+    #         for handler in self.categoryQuery:
+    #             new_category_df = handler.getAllCategories()
+    #             new_category_df_list.append(new_category_df)
             
-            category_df = new_category_df_list[0]
-            for item in new_category_df_list[1:]:
-                #
-        return category_list
+    #         category_df = new_category_df_list[0]
+    #         for item in new_category_df_list[1:]:
+    #             #
+    #     return category_list
     
-    def getAllAreas(self) -> list[Area]:
-        area_list = list()
-        if len(self.categoryQuery) > 0:
-            area_df = pd.DataFrame()
-            new_area_df_list = list()
-            for handler in self.categoryQuery:
-                new_area_df = handler.getAllCategories()
-                new_area_df_list.append(new_area_df)
+    # def getAllAreas(self) -> list[Area]:
+    #     area_list = list()
+    #     if len(self.categoryQuery) > 0:
+    #         area_df = pd.DataFrame()
+    #         new_area_df_list = list()
+    #         for handler in self.categoryQuery:
+    #             new_area_df = handler.getAllCategories()
+    #             new_area_df_list.append(new_area_df)
             
-            area_df = new_area_df_list[0]
-            for item in new_area_df_list[1:]:
-                #
-        return area_list
+    #         area_df = new_area_df_list[0]
+    #         for item in new_area_df_list[1:]:
+    #             area_df = area_df.merge(item, on=['category_id'], how='inner').drop_duplicates(subset=['author_id'], keep='first', inplace=True, ignore_index=True);
+            
+    #         for idx, row in person_df.iterrows():
+    #             if row["author_id"] != " " and row["author_name"] != " ":
+    #                 person = Person(row["author_id"], row["author_name"]);
+    #                 person_list.append(person);
+    #     return area_list
         
     
-    def getCategoriesWithQuartile(self, quartiles: set[str]) -> list[Category]:
-        category_list = list()
-        if len(self.categoryQuery) > 0:
-            category_df = pd.DataFrame()
-            new_category_df_list = list()
-            for handler in self.categoryQuery:
-                new_category_df = handler.getCategoriesWithQuartile(quartiles)
-                new_category_df_list.append(new_category_df)
+    # def getCategoriesWithQuartile(self, quartiles: set[str]) -> list[Category]:
+    #     category_list = list()
+    #     if len(self.categoryQuery) > 0:
+    #         category_df = pd.DataFrame()
+    #         new_category_df_list = list()
+    #         for handler in self.categoryQuery:
+    #             new_category_df = handler.getCategoriesWithQuartile(quartiles)
+    #             new_category_df_list.append(new_category_df)
             
-            category_df = new_category_df_list[0]
-            for item in new_category_df_list[1:]:
-                #
-        return category_list    
+    #         category_df = new_category_df_list[0]
+    #         for item in new_category_df_list[1:]:
+    #             #
+    #     return category_list    
     
-    def getCategoriesAssignedToAreas(self, area_ids: set[str]) -> list[Category]:
-        category_list = list()
-        if len(self.categoryQuery) > 0:
-            category_df = pd.DataFrame()
-            new_category_df_list = list()
-            for handler in self.categoryQuery:
-                new_category_df = handler.getCategoriesAssignedToAreas(area_ids)
-                new_category_df_list.append(new_category_df)
+    # def getCategoriesAssignedToAreas(self, area_ids: set[str]) -> list[Category]:
+    #     category_list = list()
+    #     if len(self.categoryQuery) > 0:
+    #         category_df = pd.DataFrame()
+    #         new_category_df_list = list()
+    #         for handler in self.categoryQuery:
+    #             new_category_df = handler.getCategoriesAssignedToAreas(area_ids)
+    #             new_category_df_list.append(new_category_df)
             
-            category_df = new_category_df_list[0]
-            for item in new_category_df_list[1:]:
-                #
-        return category_list 
+    #         category_df = new_category_df_list[0]
+    #         for item in new_category_df_list[1:]:
+    #             #
+    #     return category_list 
         
 
-    def getAreasAssignedToCategories(self, category_ids: set[str]) -> list[Area]:
-        area_list = list()
-        if len(self.categoryQuery) > 0:
-            area_df = pd.DataFrame()
-            new_area_df_list = list()
-            for handler in self.categoryQuery:
-                new_area_df = handler.getAreasAssignedToCategories(category_ids)
-                new_area_df_list.append(new_area_df)
+    # def getAreasAssignedToCategories(self, category_ids: set[str]) -> list[Area]:
+    #     area_list = list()
+    #     if len(self.categoryQuery) > 0:
+    #         area_df = pd.DataFrame()
+    #         new_area_df_list = list()
+    #         for handler in self.categoryQuery:
+    #             new_area_df = handler.getAreasAssignedToCategories(category_ids)
+    #             new_area_df_list.append(new_area_df)
             
-            area_df = new_area_df_list[0]
-            for item in new_area_df_list[1:]:
-                #
-        return area_list
+    #         area_df = new_area_df_list[0]
+    #         for item in new_area_df_list[1:]:
+    #             #
+    #     return area_list
         
 # ------------------------------------------------------------------------------------------------------
 # Full Query Engine -
