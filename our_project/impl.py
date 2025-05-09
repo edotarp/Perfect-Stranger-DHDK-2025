@@ -95,203 +95,192 @@ class UploadHandler(Handler):
     def __init__(self):
         super().__init__()
 
-    def pushDataToDb(self):
-        pass
-
+    def pushDataToDb(self, path: str):  #self implied 
+        if path.lower().endswith(".csv"): 
+            handler = JournalUploadHandler(self.dbPathOrUrl)
+            return handler.journalUpload(path) #calling the method after I called the subclass
+        elif path.lower().endswith(".json"): 
+            handler = CategoryUploadHandler(self.dbPathOrUrl)
+            return handler.categoryUpload(path)
+        else: 
+            return False 
 
 
 #first case: the path is of the relational database the json file
 
 class CategoryUploadHandler(UploadHandler): 
-    def __init__(self):
-        self.dbPathOrUrl = ""
+    # def __init__(self):
+    #     self.dbPathOrUrl = ""
 
     def categoryUpload(self, path: str): 
         
-        try: 
-            #creating the database 
-            with open(path, "r", encoding="utf-8") as c: 
-                json_data = json.load(c) #reading the file 
+        #creating the database 
+        with connect(self.dbPathOrUrl) as con: 
+            con.commit() #commit the current transactions to the database  
 
-                identifier_list = []
+        with open(path, "r", encoding="utf-8") as c: 
+            json_data = json.load(c) #reading the file 
 
-                category_mapping_dict = {} #using it to keep track of what we have
-                categories_list = []
+            identifier_list = []
 
-                area_mapping_dict = {}
-                area_list = []
+            category_mapping_dict = {} #using it to keep track of what we have
+            categories_list = []
 
-                #internal identifier of all the items 
-                for item_idx, item in enumerate(json_data): 
-                    item_internal_id = ("item-" + str(item_idx)) # TODO: edo comment, i would use 'item_' instead of 'item-'
+            area_mapping_dict = {}
+            area_list = []
+
+            #internal identifier of all the items 
+            for idx, item in enumerate(json_data): 
+                item_internal_id = ("item-" + str(idx)) # TODO: edo comment, i would use 'item_' instead of 'item-'
                 
-                    #1. creating internal ids for each element: identifiers 
-                    identifiers = item.get("identifiers", []) #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id 
+                #1. creating internal ids for each element: identifiers 
+                # identifiers = item.get("identifiers", []) #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id 
+                identifiers = item["identifiers"] #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id
 
-                    #iterating through the identifiers indise the bigger loop of items
-                    for id_idx, identifier in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                        identifiers_internal_id = ("internal_id-") + (item_internal_id) + ("-") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                #iterating through the identifiers indise the bigger loop of items
+                for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
+                    identifiers_internal_id = ("internal_id-") + (idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
 
-                        if identifier: #checking if there is an identifier to avoid errors 
-                            identifier_list.append({
-                                    "item_internal_id": item_internal_id,
-                                    "identifier_internal_id": identifiers_internal_id,
-                                    "identifiers": identifier #which is the single identifier 
-                                    })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
+                    identifier_list.append({
+                            "item_internal_id": item_internal_id,
+                            "identifier": identifiers_internal_id,
+                            "identifiers": identifiers #which is the single identifier 
+                            })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
 
-                    #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
-                    #i have to iterate thourg everything but check if the "id" is the same, so it's useful to use a dictionary 
-                    categories = item.get("categories", []) #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
+                #2. creating internal ids for the categories, this is trickier because they have more than one value and they can have same id
+                #i have to iterate thourg everything but check if the "id" is the same, so it's useful to use a dictionary 
+                categories = item["categories"] #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
 
-                    for cat_idx, category in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
-                        cat_id = category.get("id")
+                for idx, row in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
+                    cat_id = row['id']
 
-                        if cat_id: #checking if there is a category to avoid errors, so i don't need the [] here, it goes on only if the condition is true 
+                    if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
+                        category_id_internal_id = ("category_id-") + str(idx)
+                        category_mapping_dict[cat_id] = (category_id_internal_id)
+                    else: 
+                        category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
 
-                            if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
-                                category_id_internal_id = ("category_id-") + str(cat_idx)
-                                category_mapping_dict[cat_id] = (category_id_internal_id)
-                            else: 
-                                category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
-
-                            #checking for the quartile, because it's optional in the UML
-                            quartile = category.get("quartile", "")
-
-                            categories_list.append({
-                                "item_internal_id": item_internal_id,
-                                "category_internal_id" : category_id_internal_id,
-                                "id": cat_id,
-                                "quartile": quartile
-                            })
+                    categories_list.append({
+                        "item_internal_id": item_internal_id,
+                        "category_internal_id" : category_id_internal_id,
+                        "id": cat_id,
+                        "quartile": row['quartile']
+                    })
                 
-                    #3. creating internal ids for areas, this is the same but without any more value 
-                    areas = item.get("areas", [])
+                #3. creating internal ids for areas, this is the same but without any more value 
+                areas = item.get("areas", [])
 
-                    for area_idx, area in enumerate(areas): 
+                for idx, row in enumerate(areas): 
+                    area_section = areas[0]
+                    if area_section is not area_mapping_dict: #checking if there is an area to avoid errors  
+                        area_id = (("areas-") + str(idx))
+                        area_mapping_dict[area_section] = area_id
+                    else: 
+                        area_id = area_mapping_dict[area_section]
+                    
+                    area_list.append({
+                        "item_internal_id": item_internal_id, 
+                        "area_internal_id": area_id,
+                        "area": area_section
+                    })
 
-                        if area is not None: #checking if there is an area to avoid errors 
-                            if area not in area_mapping_dict: 
-                                area_id = (("areas-") + str(area_idx))
-                                area_mapping_dict[area] = area_id
-                            else: 
-                                area_id = area_mapping_dict[area]
-                        
-                            area_list.append({
-                                "item_internal_id": item_internal_id, 
-                                "area_internal_id": area_id,
-                                "area": area
-                            })
+            #converting the data in dataframes 
+            identifiers_df = pd.DataFrame(identifier_list)
+            categories_df = pd.DataFrame(categories_list)
+            areas_df = pd.DataFrame(area_list)
 
-                #converting the data in dataframes 
-                
-                identifiers_df = pd.DataFrame(identifier_list)
-                categories_df = pd.DataFrame(categories_list)
-                areas_df = pd.DataFrame(area_list)
-
-        except Exception as e: #handling errors in the building dataframe phase 
-            print(e)
-
-        #adding them to the database 
-        try: 
-            with connect(self.dbPathOrUrl) as con:
-                identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
-                categories_df.to_sql("categories", con, if_exists="replace", index=False)
-                areas_df.to_sql("areas", con, if_exists="replace", index=False)
+        with connect(self.dbPathOrUrl) as con:
+            identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
+            categories_df.to_sql("categories", con, if_exists="replace", index=False)
+            areas_df.to_sql("areas", con, if_exists="replace", index=False)
 
                 # TODO: why not 'con.commit()'
-        
-        except Exception as e: #handling errors in the pushing data phase
-            print(e)
-
             
 #second case: the path is the one of a graph database, the csv file
 
 class JournalUploadHandler(UploadHandler): 
-    def __init__(self):
-        self.dbPathOrUrl = ""
+    # def __init__(self):
+    #     self.dbPathOrUrl = ""
 
     def pushDataToDb(self, path):  
+        my_graph = Graph() #creating the database
 
-        try:  
-            #giving unique identifiers 
-            base_url = "https://comp-data.github.io/res"   
-            my_graph = Graph() #creating the database
-            #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
-            
-            journals = pd.read_csv(path, 
-                                keep_default_na=False, 
-                                dtype={
-                                    "Journal title": "string",
-                                    "Journal ISSN (print version)": "string",
-                                    "Journal EISSN (online version)": "string",
-                                    "Languages in which the journal accepts manuscripts": "string",
-                                    "Publisher": "string",
-                                    "DOAJ Seal": "string",
-                                    "Journal license" : "string",
-                                    "APC": "string"
-                                })
-            
+        #classes
+        IdentifiableEntity = URIRef("https://schema.org/Thing") #I made this super generic because id is already an attribute
+        Journal = URIRef("https://schema.org/Periodical") 
+        Category = URIRef("https://schema.org/category")
+        Area = URIRef("https://www.wikidata.org/wiki/Q26256810") #I found the one of the topic because area has a different interpretation as more of a physical meaning 
+
+        #predicate 
+        hasCategory = URIRef("http://purl.org/dc/terms/subject")
+        hasArea = URIRef("https://schema.org/about")
+
+        #attributes related to classes 
+        id = URIRef("https://schema.org/identifier")
+        title = URIRef("https://schema.org/title")
+        languages = URIRef("https://schema.org/inLanguage") 
+        publisher = URIRef("https://schema.org/publisher")
+        doajSeal = URIRef("https://schema.org/Certification") 
+        licence = URIRef("https://schema.org/license")
+        apc = URIRef("https://schema.org/isAccessibleForFree")
+        quartile = URIRef("https://schema.org/ratingValue") #to revise is it useful? 
+        #the impact of the journal in the respecitive field so i use the ranking attribute
+    
+        #reading the csv  Journal title,Journal ISSN (print version),Journal EISSN (online version),Languages in which the journal accepts manuscripts,Publisher,DOAJ Seal,Journal license,APC
+        
+        journals = pd.read_csv(path, 
+                            keep_default_na=False, 
+                            names=["Journal title", "Journal ISSN", "Journal EISSN", "Languages", "Publisher", "DOAJ Seal", "Journal License", "APC"],
+                            dtype={
+                                "Journal title": "string",
+                                "Journal ISSN (print version)": "string",
+                                "Journal EISSN (online version)": "string",
+                                "Languages in which the journal accepts manuscripts": "string",
+                                "Publisher": "string",
+                                "DOAJ Seal": "string",
+                                "Journal license" : "string",
+                                "APC": "string"
+                            })
+        #giving unique identifiers 
+        base_url = "https://comp-data.github.io/res" 
+        
             #removing duplicates based on Id column, keeping the first instance
             # journals.drop_duplicates(subset=["Journal title"], keep="first", inplace=True, ignore_index=True)
             
-            #classes
-            IdentifiableEntity = URIRef("https://schema.org/Thing") #I made this super generic because id is already an attribute
-            Journal = URIRef("https://schema.org/Periodical") 
-            Category = URIRef("https://schema.org/category")
-            Area = URIRef("https://www.wikidata.org/wiki/Q26256810") #I found the one of the topic because area has a different interpretation as more of a physical meaning 
+        for idx, row in journals.iterrows(): 
+            local_id = "journal-" + str(idx)
+            subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
 
-            #predicate 
-            hasCategory = URIRef("http://purl.org/dc/terms/subject")
-            hasArea = URIRef("https://schema.org/about")
-
-            #attributes related to classes 
-            id = URIRef("https://schema.org/identifier")
-            title = URIRef("https://schema.org/title")
-            languages = URIRef("https://schema.org/inLanguage") 
-            publisher = URIRef("https://schema.org/publisher")
-            doajSeal = URIRef("https://schema.org/Certification") 
-            licence = URIRef("https://schema.org/license")
-            apc = URIRef("https://schema.org/isAccessibleForFree")
-            quartile = URIRef("https://schema.org/ratingValue") #to revise is it useful? 
-            #the impact of the journal in the respecitive field so i use the ranking attribute
-
-            for idx, row in journals.iterrows(): 
-                local_id = "journal-" + str(idx)
-                subj = URIRef(base_url + local_id) #new local identifiers for each item in the graph database 
-
-                my_graph.add(((subj, RDF.type, Journal))) #the subject of the row is a journal 
+            my_graph.add(((subj, RDF.type, Journal))) #the subject of the row is a journal 
                 
-                #checking every category in the row (which is none other than a list of vocabularies)
-                if row["Journal title"]: 
-                    my_graph.add((subj, title, Literal(row["Journal title"])))
+            #checking every category in the row (which is none other than a list of vocabularies)
+            if row["Journal title"]: 
+                my_graph.add((subj, title, Literal(row["Journal title"])))
+            
+            if row["Journal ISSN (print version)"]: 
+                my_graph.add((subj, id, Literal(row["Journal ISSN (print version)"])))
                 
-                if row["Journal ISSN (print version)"]: 
-                    my_graph.add((subj, id, Literal(row["Journal ISSN (print version)"])))
+            if row["Journal EISSN (online version)"]: 
+                my_graph.add((subj, id, Literal(row["Journal EISSN (online version)"])))
                 
-                if row["Journal EISSN (online version)"]: 
-                    my_graph.add((subj, id, Literal(row["Journal EISSN (online version)"])))
+            if row["Languages in which the journal accepts manuscripts"]: #there could be more languages so it's better to iterate through each of them 
+                language_string = row["Languages in which the journal accepts manuscripts"] #1. taking in consideration the whole row
+                language_list = language_string.split(",") #as indicated in the F.A.Q on the github they are separated with a comma but inside quotes of course ",", so I separate each item 
+                for language in language_list: 
+                    language = language.strip() #to delete whitespaces and facilitate the query 
+                    my_graph.add((subj, languages, Literal(language)))
                 
-                if row["Languages in which the journal accepts manuscripts"]: #there could be more languages so it's better to iterate through each of them 
-                    language_string = row["Languages in which the journal accepts manuscripts"] #1. taking in consideration the whole row
-                    language_list = language_string.split(",") #as indicated in the F.A.Q on the github they are separated with a comma but inside quotes of course ",", so I separate each item 
-                    for language in language_list: 
-                        language = language.strip() #to delete whitespaces and facilitate the query 
-                        my_graph.add((subj, languages, Literal(language)))
+            if row["Publisher"]: 
+                my_graph.add((subj, publisher, Literal(row["Publisher"])))
+            
+            if row["DOAJ Seal"]: 
+                my_graph.add((subj, doajSeal, Literal(row["DOAJ Seal"])))
                 
-                if row["Publisher"]: 
-                    my_graph.add((subj, publisher, Literal(row["Publisher"])))
+            if row["Journal license"]: 
+                my_graph.add((subj, licence, Literal(row["Journal license"])))
                 
-                if row["DOAJ Seal"]: 
-                    my_graph.add((subj, doajSeal, Literal(row["DOAJ Seal"])))
-                
-                if row["Journal license"]: 
-                    my_graph.add((subj, licence, Literal(row["Journal license"])))
-                
-                if row["APC"]: 
-                    my_graph.add((subj, apc, Literal(row["APC"]))) # TODO: apc and seal have to be Boleans, not Yes/No
-
-        except Exception as e: 
-            print(e) #handling errors in the building the graph phase 
+            if row["APC"]: 
+                my_graph.add((subj, apc, Literal(row["APC"]))) # TODO: apc and seal have to be Boleans, not Yes/No
 
         #opening the connection to upload the graph 
         store = SPARQLUpdateStore() #initializing it as an object 
@@ -302,40 +291,118 @@ class JournalUploadHandler(UploadHandler):
             for triple in my_graph.triples((None, None, None)): 
                 store.add(triple)
 
+            store.serialize(destination=path, format="turtle") # TODO: what is it?
+
             #closing the connection when we finish 
             store.close()
 
         except Exception as e: 
             print ("Problems with the Blazegraph connection: ", e) #handling errors in the upload part 
-    
+        
+        #closing the connection when we finish 
+        store.close()     
+
+
+
 # ------------------------------------------------------------------------------------------------------
 # CategoryQueryHandler and QueryHandler - Cecilia Vesci
 
-class QueryHandler(Handler): 
-    def __init__(self, dbPathOrUrl=""):  # Provide a default value for dbPathOrUrl
+class QueryHandler:
+    def __init__(self):
+        self.dbPathOrUrl = ""
+
+    def getDbPathOrUrl(self):
+        return self.dbPathOrUrl
+
+    def setDbPathOrUrl(self, path):
+        self.dbPathOrUrl = path
+
+    def getById(self, id):
+        """
+        Questo metodo cerca un'entità identificabile per ID nel database.
+        """
+        raise NotImplementedError("Questo metodo deve essere implementato nelle sottoclassi.")
+    
+
+class CategoryQueryHandler(QueryHandler):
+  def __init__(self, dbPathOrUrl=""):
         super().__init__()
         self.dbPathOrUrl = dbPathOrUrl
-
-    def getById(self, id: str):
-        pass
-
-# class CategoryQueryHandler(QueryHandler):
-#   def __init__(self, dbPathOrUrl=""):
-#         #super().__init__()
-#         self.dbPathOrUrl = dbPathOrUrl
-#         self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), self.dbPathOrUrl))
+        self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), self.dbPathOrUrl))
   
-#   def getById(self, id: str):
-#       return pd.DataFrame() # return empty dataframe as no IdentifiableEntity in relational db
+  def getById(self, id: str):
+      return pd.DataFrame() # return empty dataframe as no IdentifiableEntity in relational db
    
-#   def executeQuery(self, sql_command):
-#        connection = connect(self.dbPathOrUrl)
-#        cursor = connection.cursor()
-#        cursor.execute(sql_command)
-#        df = pd.DataFrame(cursor.fetchall(), columns = [description[0] for description in cursor.description])
-#        #df.columns = [description[0] for description in cursor.description]; # setting column names with list comprehension because sqlite lacks a normal reference to column names
-#        connection.close()
-#        return df
+  def executeQuery(self, sql_command):
+       with connect(self.dbPathOrUrl) as connection:
+            cursor = connection.cursor()
+            cursor.execute(sql_command)
+            df = pd.DataFrame(cursor.fetchall(), columns = [description[0] for description in cursor.description]);
+       #df.columns = [description[0] for description in cursor.description]; # setting column names with list comprehension because sqlite lacks a normal reference to column names
+       return df
+
+   # Prendere tutte le categorie (distinte)
+  def getAllCategories(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT id FROM categories"
+            df = pd.read_sql_query(query, con)
+        return df
+
+    # Prendere tutte le aree (distinte)
+  def getAllAreas(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT area FROM areas"
+            df = pd.read_sql_query(query, con)
+        return df
+
+    # Prendere tutte le categorie che hanno un certo quartile
+  def getCategoriesWithQuartile(self, quartiles: set):
+        placeholders = ', '.join(['?'] * len(quartiles))
+        with connect(self.dbPathOrUrl) as con:
+            query = f"""
+            SELECT DISTINCT id, quartile 
+            FROM categories 
+            WHERE quartile IN ({placeholders})
+            """
+            df = pd.read_sql_query(query, con, params=list(quartiles))
+        return df
+
+    # Prendere tutte le categorie associate a una lista di aree
+  def getCategoriesByAreas(self, areas: set):
+        placeholders = ', '.join(['?'] * len(areas))
+        with connect(self.dbPathOrUrl) as con:
+            query = f"""
+            SELECT DISTINCT c.id, a.area
+            FROM categories c
+            JOIN areas a ON c.item_internal_id = a.item_internal_id
+            WHERE a.area IN ({placeholders})
+            """
+            df = pd.read_sql_query(query, con, params=list(areas))
+        return df
+
+    # Prendere tutti gli item (journal, ecc) associati a una categoria specifica
+  def getItemsByCategory(self, category_id: str):
+        with connect(self.dbPathOrUrl) as con:
+            query = """
+            SELECT DISTINCT item_internal_id
+            FROM categories
+            WHERE id = ?
+            """
+            df = pd.read_sql_query(query, con, params=(category_id,))
+        return df
+
+    # Prendere tutti gli item associati a una area specifica
+  def getItemsByArea(self, area_name: str):
+        with connect(self.dbPathOrUrl) as con:
+            query = """
+            SELECT DISTINCT item_internal_id
+            FROM areas
+            WHERE area = ?
+            """
+            df = pd.read_sql_query(query, con, params=(area_name,))
+        return df
+
+
         
 # ------------------------------------------------------------------------------------------------------
 # JournalQueryHandler - Faride
@@ -460,6 +527,7 @@ class JournalQueryHandler(QueryHandler):
 # Basic Query Engine - Edoardo AM Tarpinelli
 
 class BasicQueryEngine(object):
+    # TODO: we have to deal with partial input strings
     def __init__(self):
         self.journalQuery = [] # [0..*] - graph
         self.categoryQuery = [] # [0..*] - rdb
