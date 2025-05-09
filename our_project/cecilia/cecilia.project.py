@@ -35,4 +35,4 @@ def getAllActivities(self):
         Place AS Tool
     FROM activities
     """
-    return self.executeQuery(sql_command)
+    return self.executeQuery(sql_command) 
