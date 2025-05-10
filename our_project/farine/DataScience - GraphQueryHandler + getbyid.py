@@ -25,8 +25,21 @@ class JournalQueryHandler:
             df.loc[len(df)] = row_data
         return df.replace(np.nan, "")
 
-    def getById(self, id):
-        query = "SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type WHERE { ?journal <https://schema.org/identifier> ?id. FILTER(str(?id) = '%s'). OPTIONAL{ ?journal <https://schema.org/title> ?title. } OPTIONAL{ ?journal <https://schema.org/publisher> ?publisher. } OPTIONAL{ ?journal <https://schema.org/license> ?license. } OPTIONAL{ ?journal <https://schema.org/isAccessibleForFree> ?apc. } OPTIONAL{ ?journal <https://schema.org/Certification> ?seal. } OPTIONAL{ ?journal <https://schema.org/inLanguage> ?language. } OPTIONAL{ ?journal a ?type. }}" % id
+    def getById(self, identifier):
+        query = f"""
+        SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type
+        WHERE {{
+        ?journal <https://schema.org/identifier> ?id .
+        FILTER(str(?id) = "{identifier}") .
+        OPTIONAL {{ ?journal <https://schema.org/title> ?title }} .
+        OPTIONAL {{ ?journal <https://schema.org/publisher> ?publisher }} .
+        OPTIONAL {{ ?journal <https://schema.org/license> ?license }} .
+        OPTIONAL {{ ?journal <https://schema.org/isAccessibleForFree> ?apc }} .
+        OPTIONAL {{ ?journal <https://schema.org/Certification> ?seal }} .
+        OPTIONAL {{ ?journal <https://schema.org/inLanguage> ?language }} .
+        OPTIONAL {{ ?journal a ?type }} .
+    }}
+    """
         return self.execute_sparql_query(query)
     
     def getAllJournals(self):
@@ -39,9 +52,9 @@ class JournalQueryHandler:
                    <https://schema.org/identifier> ?eissn ;
                    <https://schema.org/inLanguage> ?languages ;
                    <https://schema.org/license> ?license .
-          OPTIONAL { ?journal schema:publisher ?publisher }
-          OPTIONAL { ?journal schema:isAccessibleForFree ?apc }
-          OPTIONAL { ?journal schema:Certification ?seal }
+          OPTIONAL { ?journal <https://schema.org/publisher> ?publisher }
+          OPTIONAL { ?journal <https://schema.org/isAccessibleForFree> ?apc }
+          OPTIONAL { ?journal <https://schema.org/Certification> ?seal }
         }
         """
         return self.execute_sparql_query(query)   #if there was an error the issn schema can be altered
