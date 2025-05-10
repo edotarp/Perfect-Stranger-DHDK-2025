@@ -151,11 +151,11 @@ class CategoryUploadHandler(UploadHandler):
                 #i have to iterate thourg everything but check if the "id" is the same, so it's useful to use a dictionary 
                 categories = item["categories"] #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
 
-                for idx, row in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
+                for row in enumerate(categories): #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
                     cat_id = row['id']
 
                     if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
-                        category_id_internal_id = ("category_id-") + str(idx)
+                        category_id_internal_id = ("category_id-") + str(len(category_mapping_dict))
                         category_mapping_dict[cat_id] = (category_id_internal_id)
                     else: 
                         category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
@@ -173,7 +173,7 @@ class CategoryUploadHandler(UploadHandler):
                 for idx, row in enumerate(areas): 
                     area_section = areas[0]
                     if area_section is not area_mapping_dict: #checking if there is an area to avoid errors  
-                        area_id = (("areas-") + str(idx))
+                        area_id = (("areas-") + str(len(area_mapping_dict)))
                         area_mapping_dict[area_section] = area_id
                     else: 
                         area_id = area_mapping_dict[area_section]
