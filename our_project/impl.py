@@ -139,7 +139,7 @@ class CategoryUploadHandler(UploadHandler):
 
                 #iterating through the identifiers indise the bigger loop of items
                 for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                    identifiers_internal_id = ("internal_id-") + (idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                    identifiers_internal_id = ("internal_id-") + str(idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
 
                     identifier_list.append({
                             "item_internal_id": item_internal_id,
