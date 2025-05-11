@@ -146,7 +146,7 @@ class CategoryUploadHandler(UploadHandler):
 
                 #iterating through the identifiers indise the bigger loop of items
                 for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                     identifiers_internal_id = ("item_") + (item_internal_id) + ("_identifier_internal_id_") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                     identifiers_internal_id = ("item_") + (item_internal_id) + ("_identifier_internal_id_") + str(idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
 
 
                     identifier_list.append({
@@ -185,9 +185,9 @@ class CategoryUploadHandler(UploadHandler):
                 for area in areas: 
                     if area not in area_mapping_dict: 
                         area_id = (("area_id_") + str(len(area_mapping_dict)))
-                        area_mapping_dict[area_section] = area_id
+                        area_mapping_dict[area] = area_id
                     else: 
-                        area_id = area_mapping_dict[area_section]
+                        area_id = area_mapping_dict[area]
                 
                     area_list.append({
                         "item_internal_id": item_internal_id, 
