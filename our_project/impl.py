@@ -159,6 +159,7 @@ class CategoryUploadHandler(UploadHandler):
                 categories = item.get("categories", []) #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
 
                 for row in categories: #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
+
                     cat_id = row.get("id")
 
                     if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
@@ -184,7 +185,9 @@ class CategoryUploadHandler(UploadHandler):
 
                 for row in areas: 
                     area_section = areas[0]
+
                     if row not in area_mapping_dict: 
+
                         area_id = (("areas-") + str(len(area_mapping_dict)))
                         area_mapping_dict[area_section] = area_id
                     else: 
