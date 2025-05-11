@@ -139,14 +139,14 @@ class CategoryUploadHandler(UploadHandler):
 
             #internal identifier of all the items 
             for idx, item in enumerate(json_data): 
-                item_internal_id = ("item-" + str(idx)) # TODO: edo comment, i would use 'item_' instead of 'item-'
+                item_internal_id = ("item_" + str(idx)) 
             
                 #1. creating internal ids for each element: identifiers 
                 identifiers = item.get("identifiers", []) #selecting the identifiers and using this method to retrive information from a dictionary and take into consideration the possibility that there is not an id 
 
                 #iterating through the identifiers indise the bigger loop of items
                 for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                     identifiers_internal_id = ("item_") + (item_internal_id) + ("-identifier_internal_id_") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                     identifiers_internal_id = ("item_") + (item_internal_id) + ("_identifier_internal_id_") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
 
 
                     identifier_list.append({
@@ -163,7 +163,7 @@ class CategoryUploadHandler(UploadHandler):
                     cat_id = row.get("id")
 
                     if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
-                        category_id_internal_id = ("category_id-") + str(len(category_mapping_dict))
+                        category_id_internal_id = ("category_id_") + str(len(category_mapping_dict))
                         category_mapping_dict[cat_id] = (category_id_internal_id)
                     else: 
                         category_id_internal_id = category_mapping_dict[cat_id] #if it's already inside the dict consider the original id 
@@ -184,7 +184,7 @@ class CategoryUploadHandler(UploadHandler):
 
                 for area in areas: 
                     if area not in area_mapping_dict: 
-                        area_id = (("areas-") + str(len(area_mapping_dict)))
+                        area_id = (("area_id_") + str(len(area_mapping_dict)))
                         area_mapping_dict[area_section] = area_id
                     else: 
                         area_id = area_mapping_dict[area_section]
