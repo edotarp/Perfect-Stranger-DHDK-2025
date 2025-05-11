@@ -192,7 +192,7 @@ class CategoryUploadHandler(UploadHandler):
                     area_list.append({
                         "item_internal_id": item_internal_id, 
                         "area_internal_id": area_id,
-                        "area": area_section
+                        "area": area
                     })
             
             
