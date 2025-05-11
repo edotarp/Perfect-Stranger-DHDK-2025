@@ -25,22 +25,10 @@ class JournalQueryHandler:
             df.loc[len(df)] = row_data
         return df.replace(np.nan, "")
 
-    def getById(self, identifier):
-        query = f"""
-        SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type
-        WHERE {{
-        ?journal <https://schema.org/identifier> ?id .
-        FILTER(str(?id) = "{identifier}") .
-        OPTIONAL {{ ?journal <https://schema.org/title> ?title }} .
-        OPTIONAL {{ ?journal <https://schema.org/publisher> ?publisher }} .
-        OPTIONAL {{ ?journal <https://schema.org/license> ?license }} .
-        OPTIONAL {{ ?journal <https://schema.org/isAccessibleForFree> ?apc }} .
-        OPTIONAL {{ ?journal <https://schema.org/Certification> ?seal }} .
-        OPTIONAL {{ ?journal <https://schema.org/inLanguage> ?language }} .
-        OPTIONAL {{ ?journal a ?type }} .
-    }}
-    """
+    def getById(self, id):
+        query = "SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type WHERE { ?journal <https://schema.org/identifier> ?id. FILTER(LCASE(STR(?id)) = LCASE('%s')). OPTIONAL{ ?journal <https://schema.org/title> ?title. } OPTIONAL{ ?journal <https://schema.org/publisher> ?publisher. } OPTIONAL{ ?journal <https://schema.org/license> ?license. } OPTIONAL{ ?journal <https://schema.org/isAccessibleForFree> ?apc. } OPTIONAL{ ?journal <https://schema.org/Certification> ?seal. } OPTIONAL{ ?journal <https://schema.org/inLanguage> ?language. } OPTIONAL{ ?journal a ?type. }}" % id
         return self.execute_sparql_query(query)
+
     
     def getAllJournals(self):
         query = """
