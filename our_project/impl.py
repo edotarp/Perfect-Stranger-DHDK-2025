@@ -146,7 +146,8 @@ class CategoryUploadHandler(UploadHandler):
 
                 #iterating through the identifiers indise the bigger loop of items
                 for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                    identifiers_internal_id = ("internal_id-") + str(idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                     identifiers_internal_id = ("item_") + (item_internal_id) + ("-identifier_internal_id_") + str(id_idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+
 
                     identifier_list.append({
                             "item_internal_id": item_internal_id,
@@ -159,11 +160,9 @@ class CategoryUploadHandler(UploadHandler):
                 categories = item.get("categories", []) #especially for category, quartile and area, that in the UML are noted as optional ([0...*]) it's better to do it this way 
 
                 for row in categories: #appunto per me, scrivere cat_id = category["id"] non ha senso perchè category è una lista di un dizionario, io devo internere come dizionario il singolo item 
-
                     cat_id = row.get("id")
 
                     if cat_id not in category_mapping_dict: #checking if the category is not already in the dictionary 
-                        
                         category_id_internal_id = ("category_id-") + str(len(category_mapping_dict))
                         category_mapping_dict[cat_id] = (category_id_internal_id)
                     else: 
@@ -183,11 +182,8 @@ class CategoryUploadHandler(UploadHandler):
                 #3. creating internal ids for areas, this is the same but without any more value 
                 areas = item.get("areas", [])
 
-                for row in areas: 
-                    area_section = areas[0]
-
-                    if row not in area_mapping_dict: 
-
+                for area in areas: 
+                    if area not in area_mapping_dict: 
                         area_id = (("areas-") + str(len(area_mapping_dict)))
                         area_mapping_dict[area_section] = area_id
                     else: 
@@ -198,7 +194,7 @@ class CategoryUploadHandler(UploadHandler):
                         "area_internal_id": area_id,
                         "area": area_section
                     })
-            # print(category_mapping_dict)
+            
             
             #converting the data in dataframes 
             identifiers_df = pd.DataFrame(identifier_list)
