@@ -146,12 +146,12 @@ class CategoryUploadHandler(UploadHandler):
 
                 #iterating through the identifiers indise the bigger loop of items
                 for idx, row in enumerate(identifiers): #i use the iteration because there are more than one in some cases 
-                     identifiers_internal_id = (item_internal_id) + ("_identifier_internal_id_") + str(idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
+                    identifiers_internal_id = (item_internal_id) + ("_identifier_internal_id_") + str(idx) #thi is useful even if redundant because the iteration makes the indexes always restart, so we have many internal id which are 0 or 1 
 
 
                     identifier_list.append({
                             "item_internal_id": item_internal_id,
-                            "identifier_internal_id": identifiers_internal_id,
+                            # "identifier_internal_id": identifiers_internal_id,
                             "identifiers": row #which is the single identifier 
                             })  #associating the data, with the internal id of the single category but also to the identifies of the whole item so that it's easier to query 
 
@@ -173,9 +173,9 @@ class CategoryUploadHandler(UploadHandler):
 
                     categories_list.append({
                         "item_internal_id": item_internal_id,
-                        "category_internal_id" : category_id_internal_id,
-                        "id": cat_id,
-                        "quartile": quartile
+                        # "category_internal_id" : category_id_internal_id,
+                        "category_id": cat_id,
+                        "category_quartile": quartile
                     })
                 
             
@@ -191,7 +191,7 @@ class CategoryUploadHandler(UploadHandler):
                 
                     area_list.append({
                         "item_internal_id": item_internal_id, 
-                        "area_internal_id": area_id,
+                        # "area_internal_id": area_id,
                         "area": area
                     })
             
@@ -200,11 +200,16 @@ class CategoryUploadHandler(UploadHandler):
             identifiers_df = pd.DataFrame(identifier_list)
             categories_df = pd.DataFrame(categories_list)
             areas_df = pd.DataFrame(area_list)
+            # unirle
+            merge_1 = pd.merge(identifiers_df, categories_df, left_on='item_internal_id', right_on='item_internal_id')
+            merge_2 = pd.merge(merge_1, areas_df, left_on='item_internal_id', right_on='item_internal_id')
+            
 
         with connect(self.dbPathOrUrl) as con:
-            identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
-            categories_df.to_sql("categories", con, if_exists="replace", index=False)
-            areas_df.to_sql("areas", con, if_exists="replace", index=False)
+            # identifiers_df.to_sql("identifiers", con, if_exists="replace", index=False)
+            # categories_df.to_sql("categories", con, if_exists="replace", index=False)
+            # areas_df.to_sql("areas", con, if_exists="replace", index=False)
+            merge_2.to_sql('info', con, if_exists='replace', index=False)
 
                 # TODO: why not 'con.commit()'
             
@@ -267,7 +272,7 @@ class JournalUploadHandler(UploadHandler):
             #checking every category in the row (which is none other than a list of vocabularies)
             if row["Journal title"]: 
                 my_graph.add((subj, title, Literal(row["Journal title"])))
-            # TODO: what is Literal?
+            
             if row["Journal ISSN (print version)"]: 
                 my_graph.add((subj, id, Literal(row["Journal ISSN (print version)"])))
                 
@@ -311,8 +316,6 @@ class JournalUploadHandler(UploadHandler):
         #closing the connection when we finish 
         store.close()     
 
-
-
 # ------------------------------------------------------------------------------------------------------
 # CategoryQueryHandler and QueryHandler - Cecilia Vesci
 
@@ -354,14 +357,14 @@ class CategoryQueryHandler(QueryHandler):
     # Prendere tutte le categorie (distinte)
     def getAllCategories(self):
             with connect(self.dbPathOrUrl) as con:
-                query = "SELECT DISTINCT id FROM categories"
+                query = "SELECT DISTINCT category_id FROM info"
                 df = pd.read_sql_query(query, con)
             return df
 
         # Prendere tutte le aree (distinte)
     def getAllAreas(self):
             with connect(self.dbPathOrUrl) as con:
-                query = "SELECT DISTINCT area FROM areas"
+                query = "SELECT DISTINCT area FROM info"
                 df = pd.read_sql_query(query, con)
             return df
 
@@ -411,6 +414,40 @@ class CategoryQueryHandler(QueryHandler):
                 """
                 df = pd.read_sql_query(query, con, params=(area_name,))
             return df
+    
+    # DO NOT MODIFY NEXT QUERY
+   
+    def getIdentity_and_category(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT identifiers, category_id FROM info"
+            df = pd.read_sql_query(query, con)
+        return df
+    
+    def getIdentity_and_area(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT identifiers, area FROM info"
+            df = pd.read_sql_query(query, con)
+        return df
+    
+    def getIdentities_with_category(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = """
+            SELECT DISTINCT identifiers
+            FROM info
+            WHERE category_id IS NOT NULL AND category_id != '';
+            """
+            df = pd.read_sql_query(query, con)
+        return df
+
+    def getIdentities_with_area(self):
+        with connect(self.dbPathOrUrl) as con:
+            query = """
+            SELECT DISTINCT identifiers
+            FROM info
+            WHERE area IS NOT NULL AND area != '';
+            """
+            df = pd.read_sql_query(query, con)
+        return df
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -589,27 +626,80 @@ class BasicQueryEngine(object):
     #         return Journal(df.iloc[0]["id"], df.iloc[0]["name"])
         
         return None
+    
+    def getCategory(self, issn):
+        """
+        return a list of categories associated with given issn
+        """
+        category_list = list()
+        # print(len(self.categoryQuery))
+        if len(self.categoryQuery) > 0:
+            # category_df = pd.DataFrame()
+            all_category_dfs = list()
+            for handler in self.categoryQuery:
+                new_category_df = handler.getIdentity_and_category()
+                all_category_dfs.append(new_category_df)
+            
+            if all_category_dfs:
+                # print('if...')
+                category_df = pd.concat(all_category_dfs, ignore_index=True)
+            else:
+                # print('else...')
+                category_df = pd.DataFrame()
+        category_list = category_df.loc[category_df['identifiers'] == issn, 'category_id'].tolist()
+        return category_list
+
+    def getArea(self, issn):
+        """
+        return a list of areas associated with given issn
+        """
+        area_list = list()
+        # print(len(self.categoryQuery))
+        if len(self.categoryQuery) > 0:
+            # category_df = pd.DataFrame()
+            all_area_dfs = list()
+            for handler in self.categoryQuery:
+                new_area_df = handler.getIdentity_and_area()
+                all_area_dfs.append(new_area_df)
+            
+            if all_area_dfs:
+                # print('if...')
+                area_df = pd.concat(all_area_dfs, ignore_index=True)
+            else:
+                # print('else...')
+                area_df = pd.DataFrame()
+        area_list = area_df.loc[area_df['identifiers'] == issn, 'area'].tolist()
+        return area_list
 
     def getAllJournals(self) -> list[Journal]:
+        # create list for identity with category or area
+        if len(self.categoryQuery) > 0:
+            for handler in self.categoryQuery:
+                identity_with_category = handler.getIdentities_with_category()
+                identity_with_area = handler.getIdentities_with_area()
+        # print('la mia lista', identity_with_category)
         journal_list = list()
         if len(self.journalQuery) > 0:
             all_journal_dfs = []
             for handler in self.journalQuery:
+                print(handler)
                 new_journal_df = handler.getAllJournals()
                 all_journal_dfs.append(new_journal_df)
 
             if all_journal_dfs:
                 # concatenate all journal df in the list
                 journal_df = pd.concat(all_journal_dfs, ignore_index=True)
+                print(journal_df.info())
                 # remove duplicates based on 'journal' name
                 journal_df.drop_duplicates(subset=['journal'], keep='first', inplace=True, ignore_index=True)
                 
             else:
                 # if all_journal_dfs == False: return empty df
                 journal_df = pd.DataFrame() 
-
+        print(journal_df.info())
         # convert df into list of Python Objects
         for index, row in journal_df.iterrows():
+            print('index number: ', index)
             journal = Journal(
                 id=[row['journal']],  
                 title=row['title'],
@@ -618,12 +708,12 @@ class BasicQueryEngine(object):
                 seal=row['seal'] if pd.notna(row['seal']) and str(row['seal']).lower() == 'yes' else False,
                 license=row['license'] if pd.notna(row['license']) else None,
                 apc=row['apc'] if pd.notna(row['apc']) and str(row['apc']).lower() == 'yes' else False,
-                hasCategory=[],  # Dovrai recuperare le categorie separatamente se necessario
-                hasArea=[]      # Dovrai recuperare le aree separatamente se necessario
-            )
+                hasCategory= self.getCategory(row['issn']) if row['issn'] in identity_with_category else [],
+                hasArea= self.getArea(row['issn']) if row['issn'] in identity_with_area else []
+            ) 
             journal_list.append(journal)
 
-        return journal_list, len(journal_list)
+        return journal_list # journal_list, len(journal_list)
     
     def getJournalsWithTitle(self, partialTitle: str) -> list[Journal]:
         journal_list = list()
