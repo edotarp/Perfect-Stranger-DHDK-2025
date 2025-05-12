@@ -356,80 +356,90 @@ class CategoryQueryHandler(QueryHandler):
 
     # Prendere tutte le categorie (distinte)
     def getAllCategories(self):
-            with connect(self.dbPathOrUrl) as con:
-                query = "SELECT DISTINCT category_id FROM info"
-                df = pd.read_sql_query(query, con)
-            return df
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT category_id FROM info"
+            df = pd.read_sql_query(query, con)
+            df_sorted = df.sort_values(by='category_id')
+        return df_sorted
 
         # Prendere tutte le aree (distinte)
     def getAllAreas(self):
-            with connect(self.dbPathOrUrl) as con:
+        with connect(self.dbPathOrUrl) as con:
+            query = "SELECT DISTINCT area FROM info"
+            df = pd.read_sql_query(query, con)
+            df_sorted = df.sort_values(by='area')
+        return df_sorted
+
+    def getCategoriesWithQuartile(self, quartiles=None):
+        with connect(self.dbPathOrUrl) as con:
+            if quartiles:
+                # Converti l'insieme in una lista (o tupla) per l'uso con IN e i placeholder
+                quartile_list = list(quartiles)
+                placeholders = ', '.join('?' * len(quartile_list))
+                query = f"SELECT DISTINCT category_id FROM info WHERE category_quartile IN ({placeholders})"
+                df = pd.read_sql_query(query, con, params=quartile_list)
+            else:
+                query = "SELECT DISTINCT category_id FROM info"
+                df = pd.read_sql_query(query, con)
+            df_sorted = df.sort_values(by='category_id')
+        return df_sorted
+
+    def getCategoriesAssignedToAreas(self, areas=None):
+        with connect(self.dbPathOrUrl) as con:
+            if areas:
+                # Converti l'insieme in una lista (o tupla) per l'uso con IN e i placeholder
+                area_list = list(areas)
+                placeholders = ', '.join('?' * len(area_list))
+                query = f"SELECT DISTINCT category_id FROM info WHERE area IN ({placeholders})"
+                df = pd.read_sql_query(query, con, params=area_list)
+            else:
+                query = "SELECT DISTINCT category_id FROM info"
+                df = pd.read_sql_query(query, con)
+            df_sorted = df.sort_values(by='category_id')
+        return df_sorted
+
+    def getAreasAssignedToCategories(self, categories=None):
+        with connect(self.dbPathOrUrl) as con:
+            if categories:
+                # Converti l'insieme in una lista (o tupla) per l'uso con IN e i placeholder
+                categories_list = list(categories)
+                placeholders = ', '.join('?' * len(categories_list))
+                query = f"SELECT DISTINCT area FROM info WHERE category_id IN ({placeholders})"
+                df = pd.read_sql_query(query, con, params=categories_list)
+            else:
                 query = "SELECT DISTINCT area FROM info"
                 df = pd.read_sql_query(query, con)
-            return df
+            df_sorted = df.sort_values(by='area')
+        return df_sorted
 
-        # Prendere tutte le categorie che hanno un certo quartile
-    def getCategoriesWithQuartile(self, quartiles: set):
-            placeholders = ', '.join(['?'] * len(quartiles))
-            with connect(self.dbPathOrUrl) as con:
-                query = f"""
-                SELECT DISTINCT id, quartile 
-                FROM categories 
-                WHERE quartile IN ({placeholders})
-                """
-                df = pd.read_sql_query(query, con, params=list(quartiles))
-            return df
-
-        # Prendere tutte le categorie associate a una lista di aree
-    def getCategoriesByAreas(self, areas: set):
-            placeholders = ', '.join(['?'] * len(areas))
-            with connect(self.dbPathOrUrl) as con:
-                query = f"""
-                SELECT DISTINCT c.id, a.area
-                FROM categories c
-                JOIN areas a ON c.item_internal_id = a.item_internal_id
-                WHERE a.area IN ({placeholders})
-                """
-                df = pd.read_sql_query(query, con, params=list(areas))
-            return df
-
-        # Prendere tutti gli item (journal, ecc) associati a una categoria specifica
-    def getItemsByCategory(self, category_id: str):
-            with connect(self.dbPathOrUrl) as con:
-                query = """
-                SELECT DISTINCT item_internal_id
-                FROM categories
-                WHERE id = ?
-                """
-                df = pd.read_sql_query(query, con, params=(category_id,))
-            return df
-
-        # Prendere tutti gli item associati a una area specifica
-    def getItemsByArea(self, area_name: str):
-            with connect(self.dbPathOrUrl) as con:
-                query = """
-                SELECT DISTINCT item_internal_id
-                FROM areas
-                WHERE area = ?
-                """
-                df = pd.read_sql_query(query, con, params=(area_name,))
-            return df
     
     # DO NOT MODIFY NEXT QUERY
    
     def getIdentity_and_category(self):
+        """
+        return a table which associate identifieras and categories
+            if identifier has no category then it is not in the table
+        """
         with connect(self.dbPathOrUrl) as con:
             query = "SELECT DISTINCT identifiers, category_id FROM info"
             df = pd.read_sql_query(query, con)
         return df
     
     def getIdentity_and_area(self):
+        """
+        return a table which associate identifieras and areas
+            if identifier has no area then it is not in the table
+        """
         with connect(self.dbPathOrUrl) as con:
             query = "SELECT DISTINCT identifiers, area FROM info"
             df = pd.read_sql_query(query, con)
         return df
     
     def getIdentities_with_category(self):
+        """
+        returns a dictionary (value always = []) with listed identifiers having at least one category
+        """
+        identity_category_dict = dict()
         with connect(self.dbPathOrUrl) as con:
             query = """
             SELECT DISTINCT identifiers
@@ -437,9 +447,17 @@ class CategoryQueryHandler(QueryHandler):
             WHERE category_id IS NOT NULL AND category_id != '';
             """
             df = pd.read_sql_query(query, con)
-        return df
+        for index, row in df.iterrows():
+                identifier = row['identifiers']
+                if identifier not in identity_category_dict:
+                    identity_category_dict[identifier] = []
+        return identity_category_dict
 
     def getIdentities_with_area(self):
+        """
+        returns a dictionary (value always = []) with listed identifiers having at least one area 
+        """
+        identity_area_dict = dict()
         with connect(self.dbPathOrUrl) as con:
             query = """
             SELECT DISTINCT identifiers
@@ -447,6 +465,10 @@ class CategoryQueryHandler(QueryHandler):
             WHERE area IS NOT NULL AND area != '';
             """
             df = pd.read_sql_query(query, con)
+            for index, row in df.iterrows():
+                identifier = row['identifiers']
+                if identifier not in identity_area_dict:
+                    identity_area_dict[identifier] = []
         return df
 
 
@@ -647,6 +669,7 @@ class BasicQueryEngine(object):
                 # print('else...')
                 category_df = pd.DataFrame()
         category_list = category_df.loc[category_df['identifiers'] == issn, 'category_id'].tolist()
+        print(category_list)
         return category_list
 
     def getArea(self, issn):
@@ -677,6 +700,7 @@ class BasicQueryEngine(object):
             for handler in self.categoryQuery:
                 identity_with_category = handler.getIdentities_with_category()
                 identity_with_area = handler.getIdentities_with_area()
+        print('id_with_cat:...', identity_with_category)
         # print('la mia lista', identity_with_category)
         journal_list = list()
         if len(self.journalQuery) > 0:
@@ -689,17 +713,22 @@ class BasicQueryEngine(object):
             if all_journal_dfs:
                 # concatenate all journal df in the list
                 journal_df = pd.concat(all_journal_dfs, ignore_index=True)
-                print(journal_df.info())
+                # print(journal_df.info())
                 # remove duplicates based on 'journal' name
                 journal_df.drop_duplicates(subset=['journal'], keep='first', inplace=True, ignore_index=True)
                 
             else:
                 # if all_journal_dfs == False: return empty df
                 journal_df = pd.DataFrame() 
-        print(journal_df.info())
+        # print(journal_df.info())
         # convert df into list of Python Objects
         for index, row in journal_df.iterrows():
-            print('index number: ', index)
+            # print('index number: ', index)
+            print(row['issn'])
+            # if row['issn'] in identity_with_category:
+                # print('fatta la lista categorie:', self.getCategory(row['issn']))
+            # else:
+                # print('fatta la lista categorie:', [])
             journal = Journal(
                 id=[row['journal']],  
                 title=row['title'],
