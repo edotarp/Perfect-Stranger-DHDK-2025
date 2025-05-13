@@ -82,22 +82,35 @@ class JournalQueryHandler:
 
     def getJournalsWithAPC(self):
         query = """
-        SELECT DISTINCT ?journal ?apc
+        SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type
         WHERE {
           ?journal <https://schema.org/isAccessibleForFree> ?apc .
           FILTER(LCASE(?apc) = "yes")
-        }
-        """
+      OPTIONAL { ?journal <https://schema.org/identifier> ?id. }
+      OPTIONAL { ?journal <https://schema.org/title> ?title. }
+      OPTIONAL { ?journal <https://schema.org/publisher> ?publisher. }
+      OPTIONAL { ?journal <https://schema.org/license> ?license. }
+      OPTIONAL { ?journal <https://schema.org/Certification> ?seal. }
+      OPTIONAL { ?journal <https://schema.org/inLanguage> ?language. }
+    }
+    """
         return self.execute_sparql_query(query)
+
 
     def getJournalsWithDOAJSeal(self):
         query = """
-        SELECT DISTINCT ?journal ?seal
+        SELECT DISTINCT ?journal ?id ?title ?publisher ?license ?apc ?seal ?language ?type
         WHERE {
           ?journal <https://schema.org/Certification> ?seal .
-          FILTER(LCASE(?seal) = "yes")
-        }
-        """
+        FILTER(LCASE(?seal) = "yes")
+      OPTIONAL { ?journal <https://schema.org/identifier> ?id. }
+      OPTIONAL { ?journal <https://schema.org/title> ?title. }
+      OPTIONAL { ?journal <https://schema.org/publisher> ?publisher. }
+      OPTIONAL { ?journal <https://schema.org/license> ?license. }
+      OPTIONAL { ?journal <https://schema.org/isAccessibleForFree> ?apc. }
+      OPTIONAL { ?journal <https://schema.org/inLanguage> ?language. }
+    }
+    """
         return self.execute_sparql_query(query)
 
     def getCategoriesForJournal(self, journal_uri):
