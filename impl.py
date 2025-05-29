@@ -518,6 +518,20 @@ class JournalQueryHandler(QueryHandler):
         except Exception as e:
             print("SPARQL Error:", e)
             return pd.DataFrame()
+        
+        if isinstance(result, bytes):
+            try:
+                # Decodifica i bytes in una stringa usando UTF-8 (la più comune)
+                result_str = result.decode('utf-8')
+                # Parsa la stringa JSON in un dizionario Python
+                result = json.loads(result_str)
+            except json.JSONDecodeError as jde:
+                print(f"Errore JSONDecodeError: Impossibile parsare la stringa come JSON. Dettagli: {jde}")
+                print(f"Stringa che ha causato l'errore: {result_str[:200]}...") # Stampa i primi 200 caratteri per debug
+                return pd.DataFrame() # Restituisce un DataFrame vuoto in caso di errore
+            except UnicodeDecodeError as ude:
+                print(f"Errore UnicodeDecodeError: Impossibile decodificare i byte con UTF-8. Dettagli: {ude}")
+                return pd.DataFrame()
 
         if result and "head" in result and "vars" in result["head"] and "results" in result and "bindings" in result["results"]:
             journals_data = {}
@@ -771,9 +785,17 @@ class BasicQueryEngine(object):
             first_identifier = row.identifiers[0] if isinstance(row.identifiers, list) and len(row.identifiers) > 0 else row.identifiers if isinstance(row.identifiers, str) else None
             has_area = identifier_to_areas.get(first_identifier, [])
             has_category = identifier_to_categories.get(first_identifier, [])
-            
+            # print(first_identifier, "\n", 
+            #     row.title, "\n", 
+            #     list(row.languages) if isinstance(row.languages, list) and len(row.languages) > 0 else [], "\n", 
+            #     row.publisher if pd.notna(row.publisher) else None, "\n", 
+            #     row.seal if pd.notna(row.seal) and str(row.seal).lower() == 'yes' else False, "\n", 
+            #     row.license if pd.notna(row.license) else None, "\n", 
+            #     row.apc if pd.notna(row.apc) and str(row.apc).lower() == 'yes' else False, "\n", 
+            #     has_category, # Implementa la logica di recupero efficiente se necessario
+                # has_area)
             journal = Journal(
-                id=row.journal,
+                id=first_identifier,
                 title=row.title,
                 languages=list(row.languages) if isinstance(row.languages, list) and len(row.languages) > 0 else [],
                 publisher=row.publisher if pd.notna(row.publisher) else None,
@@ -789,7 +811,11 @@ class BasicQueryEngine(object):
 
     def createCategoryObject(self, input_dataframe):
         category_list = list()
+        input_dataframe = input_dataframe.drop_duplicates(subset=['category_id'], keep='first')
+        # print(len(input_dataframe['category_id']))
         for index, row in input_dataframe.iterrows():
+            # print(row['category_id'], "\n",
+                # row['category_quartile'])
             category = Category(
                 id=row['category_id'],
                 quartile=row['category_quartile']
@@ -800,11 +826,15 @@ class BasicQueryEngine(object):
     def createAreaObject(self, input_dataframe):
         area_list = list()
         for index, row in input_dataframe.iterrows():
+            # print(row['area'])
             area = Area(
                 id=row['area'],
             )
             area_list.append(area)
         return area_list
+    
+    # def createIdentifiableEntity(self, input_obj_list):
+    #     return IdentifiableEntity(input_obj_list)
     
 
     def cleanJournalHandlers(self):
@@ -837,16 +867,16 @@ class BasicQueryEngine(object):
             return None
 
         if journal_df.empty == False and cat_area_df.empty:
-            return self.createJournalObject(journal_df)
+            return Journal
         
         if journal_df.empty and cat_area_df.empty == False:
             if len(cat_area_df.columns) == 2:
             
                 cat_area_df = cat_area_df.rename(columns={'identity': 'category_id'})
-                return self.createCategoryObject(cat_area_df)
+                return Category
             else:
                 cat_area_df = cat_area_df.rename(columns={'identity': 'area'})
-                return self.createAreaObject(cat_area_df)
+                return Area
 
     def getAllJournals(self) -> List[Journal]:
         

@@ -12,9 +12,14 @@ In this repository we uploaded:
 - A folder containing a small section of the previous ones, to test more easily each method: [test_data](https://github.com/edotarp/Perfect-Stranger-DHDK-2025/tree/main/test_data)
 
 ### Test results
+#### Test before 1st project submission 
 As per request we made sure the code passed the basic tests, below we include a screenshot as proof.
 
-![Screenshot of the basic test result: OK](https://github.com/edotarp/Perfect-Stranger-DHDK-2025/blob/main/img/Screenshot%202025-05-19%20182746.png) 
+![Screenshot of the basic test result: OK](img/Screenshot 2025-05-28 100624.png) 
+
+#### Test before 2nd project submission 
+
+![Screenshot of the basic test result: OK](C:\Users\edoar\Documents\GitHub\Data-science-group-project\img\Screenshot 2025-05-28 100624.png)
 
 ## Contributors and work division
 * [Chiara Picardi](chiara.picardi2@studio.unibo.it)
