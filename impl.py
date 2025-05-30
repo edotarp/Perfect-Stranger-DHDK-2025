@@ -16,11 +16,11 @@ from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 class IdentifiableEntity(object):
     def __init__(self, identifiers):
         self.id = set()
-        for identifier in identifiers:
-            self.id.add(identifier) # string[1..*]
+        for item in identifiers:
+            self.id.add(item) # string[1..*]
     
     def getIds(self) -> List[str]:
-        return sorted(list(self.id)) # Convert set to list and sort 
+        return list(self.id) # Convert set to list and sort 
 
 class Journal(IdentifiableEntity):
     def __init__(self, id, title, languages, publisher, seal, license, apc, hasCategory, hasArea):
@@ -730,8 +730,8 @@ class BasicQueryEngine(object):
                         if identifier not in identifier_to_category_quartiles:
                             identifier_to_category_quartiles[identifier] = []
                         # Memorizziamo la coppia (category_id, category_quartile) come una tupla
-                        if (category_id, category_quartile) not in identifier_to_category_quartiles[identifier]:
-                            identifier_to_category_quartiles[identifier].append((category_id, category_quartile))
+                        if category_id not in identifier_to_category_quartiles[identifier]:
+                            identifier_to_category_quartiles[identifier].append(category_id)
         return identifier_to_category_quartiles
 
     def gethasArea_mapped(self, all_identifiers):
@@ -752,6 +752,7 @@ class BasicQueryEngine(object):
                 """
                 df = pd.read_sql_query(query, con, params=all_identifiers)
                 if not df.empty:
+                    # print(df)
                     for index, row in df.iterrows():
                         identifier = row['identifiers']
                         area_value = row['area']
@@ -789,19 +790,19 @@ class BasicQueryEngine(object):
             #     row.title, "\n", 
             #     list(row.languages) if isinstance(row.languages, list) and len(row.languages) > 0 else [], "\n", 
             #     row.publisher if pd.notna(row.publisher) else None, "\n", 
-            #     row.seal if pd.notna(row.seal) and str(row.seal).lower() == 'yes' else False, "\n", 
+            #     True if pd.notna(row.seal) and str(row.seal.lower()).lower() == 'yes' else False, "\n", 
             #     row.license if pd.notna(row.license) else None, "\n", 
-            #     row.apc if pd.notna(row.apc) and str(row.apc).lower() == 'yes' else False, "\n", 
-            #     has_category, # Implementa la logica di recupero efficiente se necessario
+            #     True if pd.notna(row.apc) and str(row.apc.lower()).lower() == 'yes' else False, "\n", 
+                # has_category, # Implementa la logica di recupero efficiente se necessario
                 # has_area)
             journal = Journal(
-                id=first_identifier,
+                id=row.identifiers,
                 title=row.title,
                 languages=list(row.languages) if isinstance(row.languages, list) and len(row.languages) > 0 else [],
                 publisher=row.publisher if pd.notna(row.publisher) else None,
-                seal=row.seal if pd.notna(row.seal) and str(row.seal).lower() == 'yes' else False,
+                seal=True if pd.notna(row.seal) and str(row.seal.lower()).lower() == 'yes' else False,
                 license=row.license if pd.notna(row.license) else None,
-                apc=row.apc if pd.notna(row.apc) and str(row.apc).lower() == 'yes' else False,
+                apc=True if pd.notna(row.apc) and str(row.apc.lower()).lower() == 'yes' else False,
                 hasCategory=has_category, # Implementa la logica di recupero efficiente se necessario
                 hasArea=has_area
             )
@@ -813,11 +814,13 @@ class BasicQueryEngine(object):
         category_list = list()
         input_dataframe = input_dataframe.drop_duplicates(subset=['category_id'], keep='first')
         # print(len(input_dataframe['category_id']))
+        id_list = list()
         for index, row in input_dataframe.iterrows():
             # print(row['category_id'], "\n",
                 # row['category_quartile'])
+            id_list.append(row['category_id'])
             category = Category(
-                id=row['category_id'],
+                id=id_list,
                 quartile=row['category_quartile']
             )
             category_list.append(category)
@@ -825,17 +828,15 @@ class BasicQueryEngine(object):
 
     def createAreaObject(self, input_dataframe):
         area_list = list()
+        id_list = list()
         for index, row in input_dataframe.iterrows():
             # print(row['area'])
+            id_list.append(row['area'])
             area = Area(
-                id=row['area'],
+                id=id_list,
             )
             area_list.append(area)
-        return area_list
-    
-    # def createIdentifiableEntity(self, input_obj_list):
-    #     return IdentifiableEntity(input_obj_list)
-    
+        return area_list    
 
     def cleanJournalHandlers(self):
         self.journalQuery.clear() # Boolean
